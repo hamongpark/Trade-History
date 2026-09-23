@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --bg: #0e0f13;
+  --surface-1: #17191f;
+  --surface-2: #20232b;
+  --border: #2a2e38;
+  --text-primary: #f2f3f5;
+  --text-secondary: #b0b4bd;
+  --text-muted: #7c818c;
+  /* 국내식: 이익 = 빨강, 손실 = 파랑 (dark surface 기준 CVD 검증 완료) */
+  --profit: #f04452;
+  --loss: #3182f6;
+  --accent: #3182f6;
+  --warn: #f5a524;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-ink: var(--text-primary);
+  --color-ink-2: var(--text-secondary);
+  --color-ink-3: var(--text-muted);
+  --color-profit: var(--profit);
+  --color-loss: var(--loss);
+  --color-accent: var(--accent);
+  --color-warn: var(--warn);
+  --font-sans: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.input {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 100%;
+  font-size: 16px; /* iOS 자동 확대 방지 */
+  color: var(--text-primary);
+}
+.input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+.chip[data-on="true"] {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  color: var(--text-primary);
+}
+
+.btn {
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 15px;
+}
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+}
+.btn-ghost {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.md h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 20px 0 8px;
+}
+.md p {
+  margin: 8px 0;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+.md ul,
+.md ol {
+  margin: 8px 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md strong {
+  color: var(--text-primary);
+}
