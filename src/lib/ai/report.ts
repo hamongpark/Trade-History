@@ -8,6 +8,7 @@ import { computeStats } from "../domain/stats";
 import { ET, addDays, fmt, mondayOf } from "../domain/time";
 import type { PositionView } from "../domain/types";
 import { listPositions } from "../repo/positions";
+import { splitPastedReport } from "../domain/pasted";
 import { AiError, FALLBACK, REPORT_EFFORT, REPORT_MODEL, anthropic } from "./client";
 
 const Report = z.object({
@@ -15,7 +16,7 @@ const Report = z.object({
   markdown: z.string().describe("리포트 본문 (한국어 마크다운)"),
 });
 
-const SYSTEM = `당신은 미국 주식 스캘핑 트레이더의 매매 코치입니다. 사용자의 한 주 매매 기록과 통계를 보고 주간 리뷰를 한국어로 작성합니다.
+export const REPORT_SYSTEM = `당신은 미국 주식 스캘핑 트레이더의 매매 코치입니다. 사용자의 한 주 매매 기록과 통계를 보고 주간 리뷰를 한국어로 작성합니다.
 
 원칙:
 - 숫자와 실제 매매 사례(티커·시각)를 근거로 말합니다. 일반론적인 조언은 피합니다.
@@ -70,19 +71,18 @@ export function lastCompletedWeek(now = new Date()): string {
   return addDays(mondayOf(fmt(now, ET, "yyyy-MM-dd")), -7);
 }
 
-export async function generateWeeklyReport(weekStart: string, opts: { force?: boolean } = {}) {
+export interface ReportInput {
+  start: string;
+  end: string;
+  summary: ReturnType<typeof computeStats>["summary"];
+  payload: Record<string, unknown>;
+}
+
+/** 주간 리포트 입력 데이터 (API 호출과 Claude 앱 붙여넣기용 요청문이 함께 사용) */
+export async function buildReportInput(weekStart: string): Promise<ReportInput> {
   const db = await getDb();
   const start = mondayOf(weekStart);
   const end = addDays(start, 6);
-
-  if (!opts.force) {
-    const [existing] = await db
-      .select({ id: schema.aiReports.id })
-      .from(schema.aiReports)
-      .where(and(eq(schema.aiReports.periodStart, start), eq(schema.aiReports.periodEnd, end)));
-    if (existing) return { id: existing.id, created: false };
-  }
-
   const week = await listPositions({ from: start, to: end });
   const closed = week.filter((p) => p.metrics.status === "closed");
   if (closed.length === 0) throw new AiError("해당 주에 청산된 매매가 없습니다");
@@ -90,23 +90,85 @@ export async function generateWeeklyReport(weekStart: string, opts: { force?: bo
   const stats = computeStats(week);
   const prior = computeStats(await listPositions({ from: addDays(start, -28), to: addDays(start, -1) }));
   const [prev] = await db
-    .select({ focus: schema.aiReports.focus, periodStart: schema.aiReports.periodStart })
+    .select({ focus: schema.aiReports.focus })
     .from(schema.aiReports)
     .where(lt(schema.aiReports.periodStart, start))
     .orderBy(desc(schema.aiReports.periodStart))
     .limit(1);
 
-  const payload = {
-    period: { start, end, timezone: "America/New_York" },
+  return {
+    start,
+    end,
     summary: stats.summary,
-    daily: stats.daily,
-    breakdowns: stats.breakdowns,
-    excursion: stats.excursion,
-    ruleBasedInsights: deriveInsights(stats),
-    previous4Weeks: prior.summary.count ? prior.summary : null,
-    previousFocus: prev?.focus ?? null,
-    trades: closed.sort((a, b) => a.metrics.openedAt.getTime() - b.metrics.openedAt.getTime()).map(compactTrade),
+    payload: {
+      period: { start, end, timezone: "America/New_York" },
+      summary: stats.summary,
+      daily: stats.daily,
+      breakdowns: stats.breakdowns,
+      excursion: stats.excursion,
+      ruleBasedInsights: deriveInsights(stats),
+      previous4Weeks: prior.summary.count ? prior.summary : null,
+      previousFocus: prev?.focus ?? null,
+      trades: closed.sort((a, b) => a.metrics.openedAt.getTime() - b.metrics.openedAt.getTime()).map(compactTrade),
+    },
   };
+}
+
+const DATA_NOTE = "금액 단위 USD, 퍼센트 필드는 % 값, holdSec 는 초.";
+
+/** Claude 앱(구독)에 그대로 붙여넣을 요청문 */
+export function buildReportPrompt(input: ReportInput): string {
+  return `${REPORT_SYSTEM}
+
+응답 형식:
+- 첫 줄은 반드시 "집중할 한 가지: " 로 시작하는 한 문장 (다음 주에 집중할 단 한 가지 행동 규칙)
+- 그 다음 줄부터 위 구성의 마크다운 본문
+- 표와 코드 블록은 쓰지 않습니다
+
+아래는 ${input.start} ~ ${input.end} 주간 데이터입니다. ${DATA_NOTE}
+
+${JSON.stringify(input.payload)}`;
+}
+
+async function existingReport(start: string, end: string) {
+  const db = await getDb();
+  const [row] = await db
+    .select({ id: schema.aiReports.id })
+    .from(schema.aiReports)
+    .where(and(eq(schema.aiReports.periodStart, start), eq(schema.aiReports.periodEnd, end)));
+  return row?.id ?? null;
+}
+
+async function saveReport(values: typeof schema.aiReports.$inferInsert, replace: boolean) {
+  const db = await getDb();
+  if (replace)
+    await db
+      .delete(schema.aiReports)
+      .where(and(eq(schema.aiReports.periodStart, values.periodStart), eq(schema.aiReports.periodEnd, values.periodEnd)));
+  const [row] = await db.insert(schema.aiReports).values(values).returning({ id: schema.aiReports.id });
+  return row.id;
+}
+
+/** Claude 앱에서 받은 리포트를 붙여넣어 저장 */
+export async function saveManualReport(weekStart: string, text: string) {
+  const input = await buildReportInput(weekStart);
+  const { focus, markdown } = splitPastedReport(text);
+  if (!markdown) throw new AiError("리포트 내용이 비어 있습니다");
+  const id = await saveReport(
+    { periodStart: input.start, periodEnd: input.end, model: "claude.ai (구독)", content: markdown, focus, stats: input.summary },
+    true,
+  );
+  return { id, created: true };
+}
+
+export async function generateWeeklyReport(weekStart: string, opts: { force?: boolean } = {}) {
+  const start = mondayOf(weekStart);
+  const end = addDays(start, 6);
+  if (!opts.force) {
+    const id = await existingReport(start, end);
+    if (id) return { id, created: false };
+  }
+  const input = await buildReportInput(start);
 
   const res = await anthropic().beta.messages.parse({
     model: REPORT_MODEL,
@@ -114,29 +176,24 @@ export async function generateWeeklyReport(weekStart: string, opts: { force?: bo
     ...FALLBACK,
     thinking: { type: "adaptive" },
     output_config: { effort: REPORT_EFFORT, format: betaZodOutputFormat(Report) },
-    system: SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: `금액 단위 USD, 퍼센트 필드는 % 값, holdSec 는 초.\n\n${JSON.stringify(payload)}`,
-      },
-    ],
+    system: REPORT_SYSTEM,
+    messages: [{ role: "user", content: `${DATA_NOTE}\n\n${JSON.stringify(input.payload)}` }],
   });
   if (res.stop_reason === "refusal") throw new AiError("AI 가 리포트 생성을 거절했습니다");
   if (!res.parsed_output) throw new AiError("리포트 생성에 실패했습니다");
 
-  const [row] = await db
-    .insert(schema.aiReports)
-    .values({
+  const id = await saveReport(
+    {
       periodStart: start,
       periodEnd: end,
       model: res.model,
       content: res.parsed_output.markdown,
       focus: res.parsed_output.focus,
-      stats: stats.summary,
+      stats: input.summary,
       inputTokens: res.usage.input_tokens,
       outputTokens: res.usage.output_tokens,
-    })
-    .returning({ id: schema.aiReports.id });
-  return { id: row.id, created: true };
+    },
+    Boolean(opts.force),
+  );
+  return { id, created: true };
 }

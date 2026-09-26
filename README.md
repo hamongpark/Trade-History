@@ -25,10 +25,11 @@ npm run typecheck
 
 1. **Supabase** 프로젝트 생성 → Project Settings → Database → Connection string → **Transaction pooler** URL 복사
 2. **Alpaca** 무료 계정 가입 → Paper Trading API Key 발급 (시세 조회용, 과거 1분봉 수년치)
-3. **Anthropic** API 키 발급 (캡처 인식·주간 리포트)
+3. (선택) **Anthropic** API 키 — 없으면 Claude 앱(구독)에 복사·붙여넣기로 캡처 인식·주간 리포트를 사용합니다
 4. **Vercel** 에 이 저장소 Import → Environment Variables 설정:
-   - `DATABASE_URL`, `APP_PASSWORD`, `AUTH_SECRET`(32자 이상 무작위), `CRON_SECRET`(무작위)
-   - `ANTHROPIC_API_KEY`, `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`
+   - `DATABASE_URL`, `APP_PASSWORD`, `AUTH_SECRET`(32자 이상 무작위)
+   - `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`
+   - (선택) `ANTHROPIC_API_KEY`, `CRON_SECRET`
 5. 배포 후 휴대폰에서 접속 → 공유 → **홈 화면에 추가**
 
 DB 테이블은 첫 요청 시 `drizzle/` 마이그레이션으로 자동 생성됩니다. 주간 리포트는 `vercel.json` 의 Cron 으로 매주 토요일 01:00 UTC(10:00 KST)에 생성됩니다.

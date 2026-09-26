@@ -1,31 +1,17 @@
 import "server-only";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { z } from "zod";
+import { Extraction } from "../domain/pasted";
 import { AiError, EXTRACT_MODEL, FALLBACK, anthropic } from "./client";
 
-const ExtractedFill = z.object({
-  ticker: z.string().describe("미국 주식 티커 (대문자). 화면에 종목명만 있으면 해당 종목의 티커"),
-  side: z.enum(["buy", "sell"]),
-  date: z.string().nullable().describe("체결 날짜 YYYY-MM-DD, 화면에 없으면 null"),
-  time: z.string().describe("체결 시각 HH:mm (24시간제, 화면에 표시된 그대로)"),
-  price: z.number().describe("1주당 체결가 (USD)"),
-  qty: z.number().describe("체결 수량 (주)"),
-  fee: z.number().nullable().describe("수수료 (USD), 화면에 없으면 null"),
-});
-
-const Extraction = z.object({
-  fills: z.array(ExtractedFill),
-  warnings: z.array(z.string()).describe("읽기 애매했던 부분 (한국어)"),
-});
-export type Extraction = z.infer<typeof Extraction>;
-
-const SYSTEM = `당신은 증권사 앱(주로 토스증권) 체결내역 스크린샷에서 미국 주식 체결 기록을 추출합니다.
+export const EXTRACT_SYSTEM = `당신은 증권사 앱(주로 토스증권) 체결내역 스크린샷에서 미국 주식 체결 기록을 추출합니다.
 - 실제로 체결된 건만 추출합니다. 미체결·취소·주문 접수 건은 제외합니다.
 - 가격은 반드시 USD 1주당 체결가를 사용합니다. 원화 금액이나 총 체결금액을 가격으로 쓰지 않습니다.
 - 한 주문이 여러 번 나눠 체결됐다면 화면에 나뉘어 보이는 대로 각각 추출합니다.
 - 시각은 화면에 보이는 값을 그대로 사용합니다 (시간대 변환 금지).
 - 스크린샷이 여러 장이고 같은 체결이 중복으로 보이면 한 번만 포함합니다.
 - 확실하지 않은 값은 가장 그럴듯한 값을 넣고 warnings 에 적습니다.`;
+
+export type { Extraction };
 
 export interface ImageInput {
   mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
@@ -37,7 +23,7 @@ export async function extractFillsFromImages(images: ImageInput[], hintDate: str
     model: EXTRACT_MODEL,
     max_tokens: 16000,
     ...FALLBACK,
-    system: SYSTEM,
+    system: EXTRACT_SYSTEM,
     output_config: { format: betaZodOutputFormat(Extraction) },
     messages: [
       {

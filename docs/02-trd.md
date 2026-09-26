@@ -39,6 +39,7 @@
 | 캡처 인식 | `claude-opus-5` | 이미지(긴 변 1568px로 축소) + 구조화 출력(zod 스키마) | 장당 약 1.5K 입력 토큰, 건당 수 센트 |
 | 주간 리포트 | `claude-opus-5`, adaptive thinking, effort high | 통계·매매 요약 JSON → 구조화 출력 {focus, markdown} | 주 1회, 회당 약 $0.1~0.3 |
 
+- **API 키가 없으면** Claude 앱(구독) 복사·붙여넣기 방식으로 동작: `GET /api/reports/prompt` 로 요청문 생성, `POST /api/reports/manual` 로 답변 저장, 캡처 답변은 클라이언트에서 `parsePastedExtraction` 으로 검증. 구독 로그인 토큰을 서버에서 쓰는 방식은 약관상 허용되지 않아 사용하지 않음
 - 두 모델 모두 환경변수로 교체 가능 (`ANTHROPIC_EXTRACT_MODEL`, `ANTHROPIC_REPORT_MODEL`, `ANTHROPIC_REPORT_EFFORT`)
 - 안전 분류기 오탐 대비 서버 측 `fallbacks: "default"` 활성화
 - 비용 최적화: 주 1회 + 이미 있으면 생성 안 함, 원문 대신 압축된 통계/요약만 전송, 이미지 축소
@@ -51,7 +52,9 @@
 | GET/PUT/DELETE | `/api/positions/:id` | 조회/수정/삭제 |
 | POST | `/api/positions/:id/candles` | 분봉 재조회 |
 | POST | `/api/import/screenshot` | multipart `images[]`, `date` → 추출 결과 |
-| POST | `/api/reports` | `{weekStart, force?}` 주간 리포트 생성 |
+| POST | `/api/reports` | `{weekStart, force?}` 주간 리포트 생성 (API) |
+| GET | `/api/reports/prompt?weekStart=` | Claude 앱용 요청문 |
+| POST | `/api/reports/manual` | `{weekStart, text}` 붙여넣은 리포트 저장 |
 | GET | `/api/cron/weekly-report` | Vercel Cron (Bearer CRON_SECRET) |
 | GET/PUT | `/api/settings` | 설정 |
 | GET | `/api/export?type=positions\|executions\|json` | 내보내기 |

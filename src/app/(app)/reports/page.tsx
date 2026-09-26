@@ -28,8 +28,12 @@ export default async function ReportsPage() {
       <PageHeader title="AI 주간 리포트" />
       <div className="flex flex-col gap-3 px-4">
         <section className="card p-4">
-          <p className="mb-1 text-sm font-semibold">리포트 생성</p>
-          <p className="mb-3 text-xs text-ink-3">매주 토요일 오전(KST)에 지난주 리포트가 자동 생성됩니다. 필요하면 직접 만들 수도 있습니다.</p>
+          <p className="mb-1 text-sm font-semibold">주간 리포트 만들기</p>
+          <p className="mb-3 text-xs text-ink-3">
+            {aiEnabled()
+              ? "매주 토요일 오전(KST)에 API 로 자동 생성됩니다. Claude 앱(구독)으로 직접 만들 수도 있습니다."
+              : "Claude 앱(구독)으로 만듭니다. 추가 비용이 없습니다."}
+          </p>
           <GenerateReport weeks={weeks} enabled={aiEnabled()} />
         </section>
         {reports.length === 0 && <p className="py-8 text-center text-sm text-ink-3">아직 리포트가 없습니다</p>}

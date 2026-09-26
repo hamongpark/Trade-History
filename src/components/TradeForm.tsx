@@ -3,8 +3,9 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { computeMetrics, groupIntoPositions, type RawExecution } from "@/lib/domain/position";
 import { addDays, fmt, localToUtc } from "@/lib/domain/time";
-import type { Side } from "@/lib/domain/types";
+import { CAPTURE_PROMPT, parsePastedExtraction, type Extraction } from "@/lib/domain/pasted";
 import { price as fmtPrice, pct, pnlClass, usd } from "@/lib/format";
+import { CLAUDE_APP_URL, copyText } from "@/lib/clipboard";
 import { downscaleImage } from "@/lib/image";
 import { emptyFill, emptyValues, newKey, type FillRow, type FormValues } from "@/lib/trade-form";
 
@@ -51,11 +52,14 @@ export function TradeForm({
   initial,
   positionId,
   defaultDate,
+  aiEnabled = false,
 }: {
   settings: FormSettings;
   initial: FormValues;
   positionId?: number;
   defaultDate: string;
+  /** ANTHROPIC_API_KEY 가 있으면 앱에서 바로 캡처 분석 */
+  aiEnabled?: boolean;
 }) {
   const router = useRouter();
   const tz = settings.inputTimezone;
@@ -65,6 +69,9 @@ export function TradeForm({
   const [warnings, setWarnings] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasted, setPasted] = useState("");
+  const [promptCopied, setPromptCopied] = useState(false);
 
   const set = <K extends keyof FormValues>(k: K, val: FormValues[K]) => setV((s) => ({ ...s, [k]: val }));
   const setFill = (key: string, patch: Partial<FillRow>) =>
@@ -86,6 +93,41 @@ export function TradeForm({
     }
   }, [v, tz, settings.feeRatePct]);
 
+  /** 추출 결과(API 또는 Claude 앱 붙여넣기)를 포지션 단위로 묶어 폼/목록에 반영 */
+  function applyExtraction(ex: Extraction) {
+    const raw: RawExecution[] = [];
+    let prev: { date: string; time: string } | null = null;
+    for (const f of ex.fills) {
+      let date: string = f.date ?? prev?.date ?? defaultDate;
+      // 날짜가 없는 캡처에서 자정을 넘긴 경우 (예: 23:50 → 00:10) 다음 날로 처리
+      if (!f.date && prev && f.time < prev.time && prev.time >= "18:00" && f.time < "12:00") date = addDays(prev.date, 1);
+      prev = { date, time: f.time };
+      raw.push({ ticker: f.ticker, side: f.side, executedAt: localToUtc(date, f.time, tz), price: f.price, qty: f.qty, fee: f.fee ?? 0 });
+    }
+    const { groups, orphans } = groupIntoPositions(raw);
+    const found: Draft[] = groups.map((g) => ({
+      ticker: g.ticker,
+      fills: g.executions.map((e) => ({
+        key: newKey(),
+        side: e.side,
+        date: fmt(e.executedAt, tz, "yyyy-MM-dd"),
+        time: fmt(e.executedAt, tz, "HH:mm"),
+        price: String(e.price),
+        qty: String(e.qty),
+        fee: e.fee ? String(e.fee) : "",
+      })),
+    }));
+    const warn = [...ex.warnings];
+    if (orphans.length) warn.push(`매수 기록 없이 매도만 있는 체결 ${orphans.length}건은 제외했습니다 (${orphans.map((o) => o.ticker).join(", ")})`);
+    setWarnings(warn);
+    if (found.length === 0) throw new Error("체결 내역을 찾지 못했습니다");
+    if (found.length === 1 && !positionId) {
+      setV((s) => ({ ...s, ticker: found[0].ticker, fills: found[0].fills }));
+    } else {
+      setDrafts(found);
+    }
+  }
+
   async function importScreenshots(files: FileList | null) {
     if (!files?.length) return;
     setBusy("캡처 분석 중… (10~30초)");
@@ -98,42 +140,30 @@ export function TradeForm({
       const res = await fetch("/api/import/screenshot", { method: "POST", body: form });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "분석 실패");
-      const raw: RawExecution[] = [];
-      let prev: { date: string; time: string } | null = null;
-      for (const f of json.fills as { ticker: string; side: Side; date: string | null; time: string; price: number; qty: number; fee: number | null }[]) {
-        let date: string = f.date ?? prev?.date ?? defaultDate;
-        // 날짜가 없는 캡처에서 자정을 넘긴 경우 (예: 23:50 → 00:10) 다음 날로 처리
-        if (!f.date && prev && f.time < prev.time && prev.time >= "18:00" && f.time < "12:00") date = addDays(prev.date, 1);
-        prev = { date, time: f.time };
-        raw.push({ ticker: f.ticker, side: f.side, executedAt: localToUtc(date, f.time, tz), price: f.price, qty: f.qty, fee: f.fee ?? 0 });
-      }
-      const { groups, orphans } = groupIntoPositions(raw);
-      const found: Draft[] = groups.map((g) => ({
-        ticker: g.ticker,
-        fills: g.executions.map((e) => ({
-          key: newKey(),
-          side: e.side,
-          date: fmt(e.executedAt, tz, "yyyy-MM-dd"),
-          time: fmt(e.executedAt, tz, "HH:mm"),
-          price: String(e.price),
-          qty: String(e.qty),
-          fee: e.fee ? String(e.fee) : "",
-        })),
-      }));
-      const warn = [...(json.warnings ?? [])];
-      if (orphans.length) warn.push(`매수 기록 없이 매도만 있는 체결 ${orphans.length}건은 제외했습니다 (${orphans.map((o) => o.ticker).join(", ")})`);
-      setWarnings(warn);
-      if (found.length === 0) throw new Error("체결 내역을 찾지 못했습니다");
-      if (found.length === 1 && !positionId) {
-        setV((s) => ({ ...s, ticker: found[0].ticker, fills: found[0].fills }));
-      } else {
-        setDrafts(found);
-      }
+      applyExtraction(json as Extraction);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function copyCapturePrompt() {
+    const ok = await copyText(CAPTURE_PROMPT);
+    setPromptCopied(ok);
+    if (!ok) setError("복사 권한이 없습니다. 아래 요청문을 길게 눌러 복사하세요");
+  }
+
+  function importPasted() {
+    setError(null);
+    setWarnings([]);
+    try {
+      applyExtraction(parsePastedExtraction(pasted));
+      setPasted("");
+      setShowPaste(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -175,13 +205,46 @@ export function TradeForm({
 
   return (
     <div className="flex flex-col gap-4 px-4">
-      {!positionId && (
+      {!positionId && aiEnabled && (
         <>
           <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => importScreenshots(e.target.files)} />
           <button className="btn btn-ghost flex items-center justify-center gap-2" onClick={() => fileRef.current?.click()} disabled={!!busy}>
             📷 체결내역 캡처로 채우기
           </button>
         </>
+      )}
+      {!positionId && (
+        <section className="card p-3">
+          <button className="flex w-full items-center justify-between text-sm" onClick={() => setShowPaste((x) => !x)}>
+            <span className="font-semibold">📋 Claude 앱으로 캡처 읽기</span>
+            <span className="text-ink-3">{showPaste ? "접기" : "펼치기"}</span>
+          </button>
+          {showPaste && (
+            <ol className="mt-3 flex flex-col gap-3 text-sm">
+              <li className="flex flex-col gap-2">
+                <span className="text-ink-2">① 요청문을 복사해 Claude 앱 새 대화에 체결내역 캡처와 함께 보내기</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="btn btn-ghost" onClick={copyCapturePrompt}>
+                    {promptCopied ? "✓ 복사됨" : "요청문 복사"}
+                  </button>
+                  <a className="btn btn-ghost text-center" href={CLAUDE_APP_URL} target="_blank" rel="noreferrer">
+                    Claude 열기 ↗
+                  </a>
+                </div>
+                {error?.startsWith("복사 권한") && (
+                  <textarea className="input min-h-24 text-xs" readOnly value={CAPTURE_PROMPT} onFocus={(e) => e.currentTarget.select()} />
+                )}
+              </li>
+              <li className="flex flex-col gap-2">
+                <span className="text-ink-2">② Claude 답변(JSON)을 복사해 붙여넣기</span>
+                <textarea className="input min-h-24 font-mono text-xs" placeholder='{"fills":[…]}' value={pasted} onChange={(e) => setPasted(e.target.value)} />
+                <button className="btn btn-primary" onClick={importPasted} disabled={!pasted.trim()}>
+                  체결 불러오기
+                </button>
+              </li>
+            </ol>
+          )}
+        </section>
       )}
       {busy && <p className="text-center text-sm text-ink-2">{busy}</p>}
       {error && <p className="rounded-lg bg-loss/15 px-3 py-2 text-sm text-ink">{error}</p>}
