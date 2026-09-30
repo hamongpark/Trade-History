@@ -77,24 +77,24 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         }
       />
       <div className="flex flex-col gap-3 px-4">
+        {/* 그라운드 룰: 지금 매매해도 되는지 */}
+        <RuleStatusCard status={status} violationsToday={violationsToday} bigLossPct={settings.rules.bigLossPct} />
+
         {/* 오늘 / 직전 거래일 */}
         <section className="card grid grid-cols-2 divide-x divide-border p-4">
           <div className="pr-3">
             <p className="text-xs text-ink-3">오늘 · {today.slice(5).replace("-", "/")}</p>
-            <Money value={todayPnl} className="mt-1 block text-2xl font-bold" />
+            <Money value={todayPnl} className="mt-1 block text-[22px] leading-tight font-bold" />
             <p className="tnum text-xs text-ink-3">
               {todayRow ? `${todayRow.count}건 · ${todayRow.wins}승 ${todayRow.count - todayRow.wins}패` : "매매 없음"}
             </p>
           </div>
           <div className="pl-3">
             <p className="text-xs text-ink-3">이전 거래일{prevRow ? ` · ${prevRow.date.slice(5).replace("-", "/")}` : ""}</p>
-            <Money value={prevRow?.netPnl ?? 0} className="mt-1 block text-2xl font-bold" />
+            <Money value={prevRow?.netPnl ?? 0} className="mt-1 block text-[22px] leading-tight font-bold" />
             <p className="tnum text-xs text-ink-3">{prevRow ? `${prevRow.count}건 · ${prevRow.wins}승 ${prevRow.count - prevRow.wins}패` : "-"}</p>
           </div>
         </section>
-
-        {/* 그라운드 룰: 지금 매매해도 되는지 */}
-        <RuleStatusCard status={status} violationsToday={violationsToday} bigLossPct={settings.rules.bigLossPct} />
 
         {withdrawal.recommend > 0 && (
           <section className="card flex flex-col gap-2 border-profit/50 p-4">

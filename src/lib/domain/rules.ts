@@ -1,5 +1,5 @@
 import { getTimezoneOffset } from "date-fns-tz";
-import { ET, KST, etDate, etMinuteOfDay, fmt } from "./time";
+import { ET, KST, etDate, etMinuteOfDay, etWeekday, fmt } from "./time";
 import type { PositionView } from "./types";
 
 /** 1차 그라운드 룰 */
@@ -89,6 +89,8 @@ export interface RuleResult {
 
 const MIN = 60_000;
 const OPEN_ET_MIN = 9 * 60 + 30;
+const PREMARKET_ET_MIN = 4 * 60;
+const AFTERHOURS_END_ET_MIN = 20 * 60;
 
 function hhmmToMin(s: string): number {
   const [h, m] = s.split(":").map(Number);
@@ -112,6 +114,21 @@ export function isAfterCutoff(d: Date, c: RuleConfig): boolean {
 export function isInBlackout(d: Date, c: RuleConfig): boolean {
   const m = etMinuteOfDay(d);
   return m >= OPEN_ET_MIN - c.blackoutBeforeMin && m < OPEN_ET_MIN + c.blackoutAfterMin;
+}
+
+/** 프리마켓(ET 04:00) ~ 애프터마켓(ET 20:00) 밖이거나 주말이면 장 휴장 */
+export function marketClosedReason(d: Date): "weekend" | "offHours" | null {
+  const wd = etWeekday(d); // 1=월 … 7=일
+  if (wd >= 6) return "weekend";
+  const m = etMinuteOfDay(d);
+  return m < PREMARKET_ET_MIN || m >= AFTERHOURS_END_ET_MIN ? "offHours" : null;
+}
+
+/** 다음 프리마켓 시작 시각 (한국시간 표기) */
+export function nextPremarketLabel(now: Date): string {
+  const day = etDate(now);
+  const t = new Date(Date.parse(`${day}T00:00:00Z`) - getTimezoneOffset(ET, now) + PREMARKET_ET_MIN * MIN);
+  return fmt(t, KST);
 }
 
 /** 관망 구간의 한국시간 표기 (예: 22:20–22:33) */
@@ -199,7 +216,7 @@ export function evaluateRules(positions: PositionView[], c: RuleConfig): Map<num
   return out;
 }
 
-export type DayState = "open" | "blackout" | "cutoff" | "ended";
+export type DayState = "open" | "blackout" | "cutoff" | "ended" | "closed";
 
 export interface DayStatus {
   state: DayState;
@@ -222,6 +239,11 @@ export function dayStatus(todays: PositionView[], c: RuleConfig, now = new Date(
     return { ...base, state: "ended", title: "오늘 매매 종료", detail: `큰 손실 발생 (${bigLoss.ticker} ${(bigLoss.metrics.returnPct * 100).toFixed(1)}%) · 룰 ②` };
   if (c.enabled.dailyTarget && netKrw >= targetKrw)
     return { ...base, state: "ended", title: "오늘 매매 종료", detail: "일일 목표 달성 🎉 · 룰 ④" };
+  const offReason = marketClosedReason(now);
+  if (offReason === "weekend")
+    return { ...base, state: "closed", title: "주말 휴장", detail: `월요일 프리마켓 ${nextPremarketLabel(now)} 시작` };
+  if (offReason === "offHours")
+    return { ...base, state: "closed", title: "장 휴장", detail: `프리마켓 ${nextPremarketLabel(now)} 시작 · 관망 ${blackoutLabel(now, c)}` };
   if (c.enabled.lateCutoff && isAfterCutoff(now, c))
     return { ...base, state: "cutoff", title: "진입 마감", detail: `${isUsSummer(now) ? c.cutoffSummer : c.cutoffWinter} 이후 신규 진입 금지 · 룰 ①` };
   if (c.enabled.openBlackout && isInBlackout(now, c))

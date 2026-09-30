@@ -115,3 +115,25 @@ describe("⑤ 인출", () => {
     expect(after.recommend).toBe(0);
   });
 });
+
+describe("홈 상태 카드", () => {
+  const st = (date: string, hhmm: string) => dayStatus([], c, at(date, hhmm));
+  it("여름: 시간대별 상태", () => {
+    expect(st("2026-10-01", "11:59").state).toBe("closed"); // 목요일 오전, 장 없음
+    expect(st("2026-10-01", "11:59").detail).toContain("프리마켓 17:00");
+    expect(st("2026-10-01", "17:30").state).toBe("open");
+    expect(st("2026-10-01", "22:25").state).toBe("blackout");
+    expect(st("2026-10-01", "23:00").state).toBe("open");
+    expect(st("2026-10-02", "00:10").state).toBe("cutoff");
+    expect(st("2026-10-02", "08:50").state).toBe("cutoff");
+    expect(st("2026-10-02", "09:10").state).toBe("closed");
+  });
+  it("주말과 겨울", () => {
+    expect(st("2026-10-04", "22:00").state).toBe("closed"); // 일요일
+    expect(st("2026-10-04", "22:00").title).toBe("주말 휴장");
+    expect(st("2026-12-15", "17:30").state).toBe("closed"); // 겨울 프리마켓은 18:00
+    expect(st("2026-12-15", "18:10").state).toBe("open");
+    expect(st("2026-12-16", "00:20").state).toBe("open");
+    expect(st("2026-12-16", "00:40").state).toBe("cutoff");
+  });
+});

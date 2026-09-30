@@ -2,13 +2,13 @@ import Link from "next/link";
 import type { DayStatus } from "@/lib/domain/rules";
 import { won, wonCompact } from "@/lib/format";
 
-const ICON: Record<DayStatus["state"], string> = { open: "🟢", blackout: "⏸", cutoff: "🌙", ended: "⛔" };
+const ICON: Record<DayStatus["state"], string> = { open: "🟢", blackout: "⏸", cutoff: "🌙", ended: "⛔", closed: "💤" };
 
 /** 홈 상단: 지금 매매해도 되는지 + 오늘 목표 진행률 */
 export function RuleStatusCard({ status, violationsToday, bigLossPct }: { status: DayStatus; violationsToday: number; bigLossPct: number }) {
   const progress = status.targetKrw > 0 ? Math.max(0, Math.min(1, status.netKrw / status.targetKrw)) : 0;
   const tone =
-    status.state === "open"
+    status.state === "open" || status.state === "closed"
       ? "border-border"
       : status.state === "ended"
         ? "border-warn/60 bg-warn/10"
