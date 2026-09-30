@@ -22,6 +22,7 @@ async function create(): Promise<Holder> {
     const db = drizzlePg(client, { schema }) as unknown as DB;
     return { db, ready: migratePg(drizzlePg(client), { migrationsFolder: MIGRATIONS }) };
   }
+  if (process.env.VERCEL) throw new Error("DATABASE_URL 환경변수가 설정되지 않았습니다 (Vercel → Settings → Environment Variables)");
   // DATABASE_URL 이 없으면 로컬 개발용 임베디드 Postgres(PGlite)를 사용한다.
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle: drizzleLite } = await import("drizzle-orm/pglite");
