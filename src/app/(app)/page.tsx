@@ -65,7 +65,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         {/* 오늘 / 직전 거래일 */}
         <section className="card grid grid-cols-2 divide-x divide-border p-4">
           <div className="pr-3">
-            <p className="text-xs text-ink-3">오늘 · {today.slice(5).replace("-", "/")} ET</p>
+            <p className="text-xs text-ink-3">오늘 · {today.slice(5).replace("-", "/")}</p>
             <Money value={todayPnl} className="mt-1 block text-2xl font-bold" />
             <p className="tnum text-xs text-ink-3">
               {todayRow ? `${todayRow.count}건 · ${todayRow.wins}승 ${todayRow.count - todayRow.wins}패` : "매매 없음"}

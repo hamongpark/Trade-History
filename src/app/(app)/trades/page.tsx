@@ -45,7 +45,7 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
           return (
             <section key={day}>
               <div className="mb-1.5 flex items-baseline justify-between px-1">
-                <span className="text-sm font-semibold">{day} <span className="text-xs font-normal text-ink-3">ET · {ps.length}건</span></span>
+                <span className="text-sm font-semibold">{day} <span className="text-xs font-normal text-ink-3">{ps.length}건</span></span>
                 <Money value={total} className="text-sm font-semibold" />
               </div>
               <ul className="card divide-y divide-border">

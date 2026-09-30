@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getDb, schema } from "../db";
 import { deriveInsights } from "../domain/insights";
 import { computeStats } from "../domain/stats";
-import { ET, addDays, fmt, mondayOf } from "../domain/time";
+import { ET, KST, addDays, fmt, mondayOf } from "../domain/time";
 import type { PositionView } from "../domain/types";
 import { listPositions } from "../repo/positions";
 import { splitPastedReport } from "../domain/pasted";
@@ -41,8 +41,8 @@ function compactTrade(p: PositionView) {
   return {
     ticker: p.ticker,
     date: p.tradeDate,
-    openET: fmt(m.openedAt, ET),
-    closeET: m.closedAt ? fmt(m.closedAt, ET) : null,
+    openKST: fmt(m.openedAt, KST),
+    closeKST: m.closedAt ? fmt(m.closedAt, KST) : null,
     holdSec: m.holdSeconds,
     fills: m.fillCount,
     avgEntry: +m.avgEntry.toFixed(4),
@@ -88,7 +88,7 @@ export async function buildReportInput(weekStart: string): Promise<ReportInput> 
   const closed = week.filter((p) => p.metrics.status === "closed");
   if (closed.length === 0) throw new AiError("해당 주에 청산된 매매가 없습니다");
 
-  const stats = computeStats(week);
+  const stats = computeStats(week, { tz: KST, ref: new Date(`${start}T16:00:00Z`) });
   const prior = computeStats(await listPositions({ from: addDays(start, -28), to: addDays(start, -1) }));
   const [prev] = await db
     .select({ focus: schema.aiReports.focus })
@@ -102,7 +102,7 @@ export async function buildReportInput(weekStart: string): Promise<ReportInput> 
     end,
     summary: stats.summary,
     payload: {
-      period: { start, end, timezone: "America/New_York" },
+      period: { start, end, note: "날짜는 미국 거래일(한국시간 밤 장 시작일), 시각은 한국시간(KST)" },
       summary: stats.summary,
       daily: stats.daily,
       breakdowns: stats.breakdowns,

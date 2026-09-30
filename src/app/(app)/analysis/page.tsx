@@ -6,9 +6,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { Stat } from "@/components/Stat";
 import { deriveInsights } from "@/lib/domain/insights";
 import { BREAKDOWN_LABELS, computeStats, type BreakdownKey } from "@/lib/domain/stats";
-import { addDays, etDate, formatHold, mondayOf } from "@/lib/domain/time";
+import { ET, addDays, etDate, formatHold, mondayOf } from "@/lib/domain/time";
 import { pct, won } from "@/lib/format";
 import { listPositions } from "@/lib/repo/positions";
+import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,9 @@ export default async function AnalysisPage({ searchParams }: PageProps<"/analysi
   const period = PERIODS.find((p) => p.key === sp.p)?.key ?? "month";
   const today = etDate(new Date());
   const from = { week: mondayOf(today), month: `${today.slice(0, 7)}-01`, "3m": addDays(today, -91), all: undefined }[period];
-  const stats = computeStats(await listPositions({ from }));
+  const settings = await getSettings();
+  const tz = settings.displayTimezone;
+  const stats = computeStats(await listPositions({ from }), { tz });
   const s = stats.summary;
   const insights = deriveInsights(stats);
   const ex = stats.excursion;
@@ -108,7 +111,9 @@ export default async function AnalysisPage({ searchParams }: PageProps<"/analysi
 
             {ORDER.map((k) => (
               <section key={k} className="card p-4">
-                <p className="mb-3 text-sm font-semibold">{BREAKDOWN_LABELS[k]}</p>
+                <p className="mb-3 text-sm font-semibold">{BREAKDOWN_LABELS[k]}
+                  {k === "timeOfDay" && <span className="text-xs font-normal text-ink-3"> ({tz === ET ? "미국 동부시간" : "한국시간"} · 장 개장 기준 구간)</span>}
+                </p>
                 <BreakdownBars buckets={stats.breakdowns[k]} />
               </section>
             ))}

@@ -7,7 +7,7 @@ import { Stat } from "@/components/Stat";
 import { TradeActions } from "@/components/TradeActions";
 import { candleWindow, loadCandles, needsRefetch, refreshCandlesWithTimeout } from "@/lib/candles";
 import { ET, KST, fmt, formatHold } from "@/lib/domain/time";
-import { dollar, pct, price, won } from "@/lib/format";
+import { dollar, pct, won } from "@/lib/format";
 import { getPosition } from "@/lib/repo/positions";
 import { getSettings } from "@/lib/settings";
 
@@ -47,8 +47,8 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
             <Stat label="보유 시간" value={formatHold(m.holdSeconds)} />
             <Stat label="R 배수" value={m.rMultiple != null ? `${m.rMultiple.toFixed(2)}R` : "-"} />
             <Stat label="수수료" value={won(p.krw.fees, { sign: false })} sub={`$${m.fees.toFixed(2)}`} />
-            <Stat label="평균 매수가" value={dollar(m.avgEntry)} sub={`최대 ${m.maxQty}주`} />
-            <Stat label="평균 매도가" value={dollar(m.avgExit)} sub={`손익 ${m.netPnl < 0 ? "−" : "+"}$${Math.abs(m.netPnl).toFixed(2)}`} />
+            <Stat label="평균 매수가" value={won(m.avgEntry * p.fxRate, { sign: false })} sub={`${dollar(m.avgEntry)} · 최대 ${m.maxQty}주`} />
+            <Stat label="평균 매도가" value={m.avgExit != null ? won(m.avgExit * p.fxRate, { sign: false }) : "-"} sub={`${dollar(m.avgExit)} · 손익 ${m.netPnl < 0 ? "−" : "+"}$${Math.abs(m.netPnl).toFixed(2)}`} />
             <Stat label="체결" value={`${m.fillCount}회`} />
           </div>
         </section>
@@ -106,7 +106,10 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
                 <tr key={i} className="border-t border-border">
                   <td className={`py-1.5 ${x.side === "buy" ? "text-profit" : "text-loss"}`}>{x.side === "buy" ? "매수" : "매도"}</td>
                   <td>{fmt(x.executedAt, tz, "HH:mm")}</td>
-                  <td className="text-right">{price(x.price)}</td>
+                  <td className="text-right">
+                    {won(x.price * p.fxRate, { sign: false })}
+                    <span className="block text-[11px] text-ink-3">{dollar(x.price)}</span>
+                  </td>
                   <td className="text-right">{x.qty}</td>
                 </tr>
               ))}
@@ -114,8 +117,8 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
           </table>
           {(p.stopPct != null || p.targetPct != null) && (
             <p className="tnum mt-2 text-xs text-ink-3">
-              계획 손절 {p.stopPct != null ? `−${p.stopPct}% (${dollar(p.stopPrice)})` : "-"} · 목표{" "}
-              {p.targetPct != null ? `+${p.targetPct}% (${dollar(p.targetPrice)})` : "-"}
+              계획 손절 {p.stopPct != null && p.stopPrice != null ? `−${p.stopPct}% (${won(p.stopPrice * p.fxRate, { sign: false })})` : "-"} · 목표{" "}
+              {p.targetPct != null && p.targetPrice != null ? `+${p.targetPct}% (${won(p.targetPrice * p.fxRate, { sign: false })})` : "-"}
             </p>
           )}
           <p className="tnum mt-1 text-xs text-ink-3">

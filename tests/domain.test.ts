@@ -162,3 +162,17 @@ describe("원화 환산 · 손절율", () => {
     expect(pctToPrices(10, null, null)).toEqual({ stopPrice: null, targetPrice: null });
   });
 });
+
+describe("시간대 라벨", () => {
+  it("장 개장 기준 구간을 한국시간으로 표시 (서머타임 반영)", async () => {
+    const { timeBucketLabels } = await import("@/lib/domain/stats");
+    const summer = timeBucketLabels("Asia/Seoul", new Date("2026-09-30T15:00:00Z"));
+    expect(summer[0]).toBe("~22:30 프리마켓");
+    expect(summer[1]).toBe("22:30–22:45 개장 직후");
+    expect(summer[4]).toBe("01:00–03:00 점심");
+    expect(summer[7]).toBe("05:00~ 애프터마켓");
+    const winter = timeBucketLabels("Asia/Seoul", new Date("2026-12-15T15:00:00Z"));
+    expect(winter[1]).toBe("23:30–23:45 개장 직후");
+    expect(timeBucketLabels("America/New_York", new Date("2026-09-30T15:00:00Z"))[1]).toBe("09:30–09:45 개장 직후");
+  });
+});

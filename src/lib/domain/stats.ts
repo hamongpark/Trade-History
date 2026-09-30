@@ -1,4 +1,4 @@
-import { etMinuteOfDay, etWeekday } from "./time";
+import { ET, KST, etDate, etMinuteOfDay, etWeekday, fmt, localToUtc } from "./time";
 import type { PositionView } from "./types";
 
 export interface Bucket {
@@ -78,7 +78,7 @@ export type BreakdownKey =
   | "ticker";
 
 export const BREAKDOWN_LABELS: Record<BreakdownKey, string> = {
-  timeOfDay: "시간대 (ET)",
+  timeOfDay: "시간대",
   weekday: "요일",
   holdTime: "보유 시간",
   setup: "셋업",
@@ -90,16 +90,31 @@ export const BREAKDOWN_LABELS: Record<BreakdownKey, string> = {
   ticker: "종목",
 };
 
+/** 장 개장 기준 시간 구간 (ET 분). 라벨은 표시 시간대로 바꿔 보여준다 */
 const TIME_BUCKETS: [number, number, string][] = [
   [0, 570, "프리마켓"],
-  [570, 585, "09:30–09:45 개장 직후"],
-  [585, 630, "09:45–10:30"],
-  [630, 720, "10:30–12:00"],
-  [720, 840, "12:00–14:00 점심"],
-  [840, 930, "14:00–15:30"],
-  [930, 960, "15:30–16:00 마감"],
+  [570, 585, "개장 직후"],
+  [585, 630, ""],
+  [630, 720, ""],
+  [720, 840, "점심"],
+  [840, 930, ""],
+  [930, 960, "마감"],
   [960, 1440, "애프터마켓"],
 ];
+
+/**
+ * 시간 구간 라벨. 구분은 장 개장 기준(ET)이라 서머타임과 무관하게 같은 구간끼리 묶이고,
+ * 라벨의 시각만 기준일의 표시 시간대로 환산한다 (예: 한국시간 여름 22:30–22:45 개장 직후).
+ */
+export function timeBucketLabels(tz: string, ref: Date = new Date()): string[] {
+  const day = etDate(ref);
+  const hhmm = (min: number) => fmt(localToUtc(day, `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`, ET), tz);
+  return TIME_BUCKETS.map(([a, b, name]) => {
+    if (a === 0) return `~${hhmm(b)} ${name}`;
+    if (b === 1440) return `${hhmm(a)}~ ${name}`;
+    return `${hhmm(a)}–${hhmm(b)}${name ? ` ${name}` : ""}`;
+  });
+}
 const WEEKDAYS = ["", "월", "화", "수", "목", "금", "토", "일"];
 const HOLD_BUCKETS: [number, string][] = [
   [60, "1분 미만"],
@@ -128,7 +143,15 @@ function bucketize(list: PositionView[], keyOf: (p: PositionView) => string[] | 
   return buckets.sort((a, b) => b.count - a.count || b.netPnl - a.netPnl);
 }
 
-export function computeStats(all: PositionView[]): Stats {
+export interface StatsOptions {
+  /** 시간대 라벨 표시용 (기본 한국시간) */
+  tz?: string;
+  /** 라벨 환산 기준일 (서머타임 판단용, 기본 오늘) */
+  ref?: Date;
+}
+
+export function computeStats(all: PositionView[], opts: StatsOptions = {}): Stats {
+  const labels = timeBucketLabels(opts.tz ?? KST, opts.ref);
   const closed = all
     .filter((p) => p.metrics.status === "closed")
     .sort((a, b) => a.metrics.openedAt.getTime() - b.metrics.openedAt.getTime());
@@ -224,11 +247,11 @@ export function computeStats(all: PositionView[]): Stats {
   const holdLabel = (s: number | null) => HOLD_BUCKETS.find(([lim]) => (s ?? 0) < lim)![1];
   const timeLabel = (p: PositionView) => {
     const m = etMinuteOfDay(p.metrics.openedAt);
-    return TIME_BUCKETS.find(([a, b]) => m >= a && m < b)![2];
+    return labels[TIME_BUCKETS.findIndex(([a, b]) => m >= a && m < b)];
   };
 
   const breakdowns: Record<BreakdownKey, Bucket[]> = {
-    timeOfDay: bucketize(closed, timeLabel, TIME_BUCKETS.map((b) => b[2])),
+    timeOfDay: bucketize(closed, timeLabel, labels),
     weekday: bucketize(closed, (p) => WEEKDAYS[etWeekday(p.metrics.openedAt)], WEEKDAYS),
     holdTime: bucketize(closed, (p) => holdLabel(p.metrics.holdSeconds), HOLD_BUCKETS.map((b) => b[1])),
     setup: bucketize(closed, (p) => (p.setupTags.length ? p.setupTags : ["(태그 없음)"])),
