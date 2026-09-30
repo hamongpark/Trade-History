@@ -5,7 +5,7 @@ import { Money } from "@/components/Money";
 import { PageHeader } from "@/components/PageHeader";
 import { Stat } from "@/components/Stat";
 import { TradeActions } from "@/components/TradeActions";
-import { candleWindow, loadCandles } from "@/lib/candles";
+import { candleWindow, loadCandles, needsRefetch, refreshCandlesWithTimeout } from "@/lib/candles";
 import { ET, KST, fmt, formatHold } from "@/lib/domain/time";
 import { dollar, pct, price, won } from "@/lib/format";
 import { getPosition } from "@/lib/repo/positions";
@@ -15,12 +15,18 @@ export const dynamic = "force-dynamic";
 
 export default async function TradeDetail({ params }: PageProps<"/trades/[id]">) {
   const id = Number((await params).id);
-  const [p, s] = await Promise.all([getPosition(id), getSettings()]);
-  if (!p) notFound();
+  const [first, s] = await Promise.all([getPosition(id), getSettings()]);
+  if (!first) notFound();
+  // 매매 직후 저장해 매도 이후 분봉이 비어 있었다면, 시세 지연이 풀린 지금 다시 받아온다
+  let p = first;
+  if (needsRefetch(first)) {
+    await refreshCandlesWithTimeout(id);
+    p = (await getPosition(id)) ?? first;
+  }
   const m = p.metrics;
   const tz = s.displayTimezone;
   const { from, to } = candleWindow(p);
-  const bars = p.candlesStatus === "ok" ? await loadCandles(p.ticker, from, to) : [];
+  const bars = p.candlesStatus === "ok" || p.candlesStatus === "partial" ? await loadCandles(p.ticker, from, to) : [];
   const zones = [tz, ...[KST, ET].filter((z) => z !== tz)];
   const timezones: TzOption[] = zones.map((z) => ({ label: z === KST ? "KST" : z === ET ? "ET" : z, offset: getTimezoneOffset(z, m.openedAt) / 1000 }));
   const e = p.excursion;
@@ -48,7 +54,7 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
         </section>
 
         <section className="card p-3">
-          <p className="mb-2 px-1 text-sm font-semibold">체결 전후 30분 · 1분봉</p>
+          <p className="mb-2 px-1 text-sm font-semibold">체결 전후 30분 · 1분봉 <span className="text-xs font-normal text-ink-3">(원화 환산)</span></p>
           {bars.length > 0 ? (
             <CandleChart
               bars={bars.map((b) => ({ t: b.ts.getTime() / 1000, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume }))}
@@ -56,9 +62,15 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
               plannedStop={p.stopPrice}
               plannedTarget={p.targetPrice}
               avgEntry={m.avgEntry}
+              avgExit={m.avgExit}
+              fxRate={p.fxRate}
               timezones={timezones}
             />
-          ) : (
+          ) : null}
+          {bars.length > 0 && p.candlesStatus === "partial" && (
+            <p className="mt-2 px-1 text-xs text-ink-3">매도 이후 분봉은 시세 지연(약 15분)이 지나면 이 화면을 다시 열 때 자동으로 채워집니다.</p>
+          )}
+          {bars.length === 0 && (
             <p className="px-1 py-8 text-center text-sm text-ink-3">
               {p.candlesStatus === "error" ? `분봉을 가져오지 못했습니다: ${p.candlesError}` : "분봉 데이터가 없습니다. 아래에서 불러오기를 눌러주세요."}
             </p>

@@ -39,7 +39,7 @@ export default async function EditTradePage({ params }: PageProps<"/trades/[id]/
     <>
       <PageHeader title={`${p.ticker} 수정`} back={`/trades/${id}`} />
       <TradeForm
-        settings={{ inputTimezone: tz, feeRatePct: s.feeRatePct, setupTags: s.setupTags, emotionTags: s.emotionTags }}
+        settings={{ inputTimezone: tz, feeRatePct: s.feeRatePct, setupTags: s.setupTags, emotionTags: s.emotionTags, defaultStopPct: s.defaultStopPct, defaultTargetPct: s.defaultTargetPct }}
         initial={initial}
         positionId={id}
         defaultDate={initial.fills[0]?.date ?? fmt(new Date(), tz, "yyyy-MM-dd")}

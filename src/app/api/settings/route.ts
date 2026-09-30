@@ -10,6 +10,8 @@ const patchSchema = z
     feeRatePct: z.number().min(0).max(5),
     dailyLossLimitKrw: z.number().min(0),
     maxTradesPerDay: z.number().int().min(1).max(100),
+    defaultStopPct: z.number().positive().max(100).nullable(),
+    defaultTargetPct: z.number().positive().max(1000).nullable(),
     setupTags: z.array(z.string().trim().min(1)).max(40),
     emotionTags: z.array(z.string().trim().min(1)).max(40),
   })

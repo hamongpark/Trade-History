@@ -8,6 +8,8 @@ interface S {
   feeRatePct: number;
   dailyLossLimitKrw: number;
   maxTradesPerDay: number;
+  defaultStopPct: number | null;
+  defaultTargetPct: number | null;
   setupTags: string[];
   emotionTags: string[];
 }
@@ -19,7 +21,14 @@ const TZ = [
 
 export function SettingsForm({ initial }: { initial: S }) {
   const router = useRouter();
-  const [s, setS] = useState({ ...initial, setupText: initial.setupTags.join(", "), emotionText: initial.emotionTags.join(", ") });
+  const [s, setS] = useState({
+    ...initial,
+    setupText: initial.setupTags.join(", "),
+    emotionText: initial.emotionTags.join(", "),
+    stopText: initial.defaultStopPct?.toString() ?? "",
+    targetText: initial.defaultTargetPct?.toString() ?? "",
+  });
+  const optNum = (t: string) => (t.trim() === "" ? null : Number(t));
   const [msg, setMsg] = useState<string | null>(null);
   const split = (t: string) => [...new Set(t.split(/[,\n]/).map((x) => x.trim()).filter(Boolean))];
 
@@ -34,6 +43,8 @@ export function SettingsForm({ initial }: { initial: S }) {
         feeRatePct: Number(s.feeRatePct),
         dailyLossLimitKrw: Number(s.dailyLossLimitKrw),
         maxTradesPerDay: Number(s.maxTradesPerDay),
+        defaultStopPct: optNum(s.stopText),
+        defaultTargetPct: optNum(s.targetText),
         setupTags: split(s.setupText),
         emotionTags: split(s.emotionText),
       }),
@@ -71,6 +82,16 @@ export function SettingsForm({ initial }: { initial: S }) {
         <div className={row}>
           <span className="text-sm text-ink-2">일 최대 매매</span>
           <input className="input" inputMode="numeric" value={s.maxTradesPerDay} onChange={(e) => setS({ ...s, maxTradesPerDay: e.target.value as unknown as number })} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className={row}>
+          <span className="text-sm text-ink-2">기본 손절율 (−%)</span>
+          <input className="input" inputMode="decimal" placeholder="예: 10" value={s.stopText} onChange={(e) => setS({ ...s, stopText: e.target.value })} />
+        </div>
+        <div className={row}>
+          <span className="text-sm text-ink-2">기본 목표율 (+%)</span>
+          <input className="input" inputMode="decimal" placeholder="예: 3" value={s.targetText} onChange={(e) => setS({ ...s, targetText: e.target.value })} />
         </div>
       </div>
       <div className={row}>

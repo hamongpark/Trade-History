@@ -11,6 +11,10 @@ export interface AppSettings {
   feeRatePct: number;
   /** 일 손실 한도 (원, 양수로 입력) */
   dailyLossLimitKrw: number;
+  /** 새 기록의 기본 손절율 (%) */
+  defaultStopPct: number | null;
+  /** 새 기록의 기본 목표율 (%) */
+  defaultTargetPct: number | null;
   /** 하루 최대 매매 횟수 (포지션 기준) */
   maxTradesPerDay: number;
   setupTags: string[];
@@ -23,6 +27,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   feeRatePct: 0.1,
   dailyLossLimitKrw: 300000,
   maxTradesPerDay: 5,
+  defaultStopPct: 10,
+  defaultTargetPct: 3,
   setupTags: ["돌파", "눌림목", "갭상승", "VWAP 반등", "고점 돌파 실패 숏커버", "뉴스/공시", "거래량 급증"],
   emotionTags: ["확신", "FOMO", "복수매매", "조급함", "지루함", "두려움", "욕심"],
 };

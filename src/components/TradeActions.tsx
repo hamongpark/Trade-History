@@ -29,7 +29,7 @@ export function TradeActions({ id, candlesStatus }: { id: number; candlesStatus:
           수정
         </Link>
         <button className="btn btn-ghost" onClick={refetch} disabled={busy}>
-          {busy ? "불러오는 중" : candlesStatus === "ok" ? "분봉 새로고침" : "분봉 불러오기"}
+          {busy ? "불러오는 중" : candlesStatus === "ok" || candlesStatus === "partial" ? "분봉 새로고침" : "분봉 불러오기"}
         </button>
         <button className="btn btn-ghost text-loss" onClick={remove}>
           삭제

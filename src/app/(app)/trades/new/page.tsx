@@ -14,8 +14,8 @@ export default async function NewTradePage() {
     <>
       <PageHeader title="매매 기록" back="/" />
       <TradeForm
-        settings={{ inputTimezone: s.inputTimezone, feeRatePct: s.feeRatePct, setupTags: s.setupTags, emotionTags: s.emotionTags }}
-        initial={emptyValues(today)}
+        settings={{ inputTimezone: s.inputTimezone, feeRatePct: s.feeRatePct, setupTags: s.setupTags, emotionTags: s.emotionTags, defaultStopPct: s.defaultStopPct, defaultTargetPct: s.defaultTargetPct }}
+        initial={emptyValues(today, { stopPct: s.defaultStopPct, targetPct: s.defaultTargetPct })}
         defaultDate={today}
         aiEnabled={aiEnabled()}
       />

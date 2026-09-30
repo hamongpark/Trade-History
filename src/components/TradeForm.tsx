@@ -14,6 +14,8 @@ export interface FormSettings {
   feeRatePct: number;
   setupTags: string[];
   emotionTags: string[];
+  defaultStopPct: number | null;
+  defaultTargetPct: number | null;
 }
 
 const toNum = (s: string) => (s.trim() === "" ? null : Number(s));
@@ -64,6 +66,7 @@ export function TradeForm({
 }) {
   const router = useRouter();
   const tz = settings.inputTimezone;
+  const blank = () => emptyValues(defaultDate, { stopPct: settings.defaultStopPct, targetPct: settings.defaultTargetPct });
   const [v, setV] = useState<FormValues>(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -195,7 +198,7 @@ export function TradeForm({
   async function saveAllDrafts() {
     setBusy("저장 중…");
     setError(null);
-    const payload = drafts.map((d) => toPayload({ ...emptyValues(defaultDate), ticker: d.ticker, fills: d.fills }, tz));
+    const payload = drafts.map((d) => toPayload({ ...blank(), ticker: d.ticker, fills: d.fills }, tz));
     const res = await fetch("/api/positions/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     setBusy(null);
     if (!res.ok) return setError((await res.json()).error ?? "저장 실패");
@@ -220,7 +223,7 @@ export function TradeForm({
     if (!res.ok) return setError(json.error ?? "저장 실패");
     if (drafts.length) {
       // 캡처에서 가져온 나머지 포지션이 남아 있으면 폼을 비우고 계속 입력
-      setV(emptyValues(defaultDate));
+      setV(blank());
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -291,7 +294,7 @@ export function TradeForm({
             {drafts.map((d, i) => {
               const m = (() => {
                 try {
-                  return computeMetrics(toPayload({ ...emptyValues(defaultDate), ticker: d.ticker, fills: d.fills }, tz).executions.map((e) => ({ ...e, executedAt: new Date(e.executedAt), fee: e.fee ?? 0 })));
+                  return computeMetrics(toPayload({ ...blank(), ticker: d.ticker, fills: d.fills }, tz).executions.map((e) => ({ ...e, executedAt: new Date(e.executedAt), fee: e.fee ?? 0 })));
                 } catch {
                   return null;
                 }
@@ -306,7 +309,7 @@ export function TradeForm({
                     <button
                       className="text-accent"
                       onClick={() => {
-                        setV({ ...emptyValues(defaultDate), ticker: d.ticker, fills: d.fills });
+                        setV({ ...blank(), ticker: d.ticker, fills: d.fills });
                         setDrafts((ds) => ds.filter((_, j) => j !== i));
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }}

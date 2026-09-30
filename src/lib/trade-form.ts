@@ -35,12 +35,13 @@ export function emptyFill(side: Side, date: string): FillRow {
   return { key: newKey(), side, date, time: "", price: "", qty: "", fee: "" };
 }
 
-export function emptyValues(date: string): FormValues {
+/** 새 기록 기본값. 손절율·목표율은 설정의 기본값으로 채운다 */
+export function emptyValues(date: string, defaults: { stopPct?: number | null; targetPct?: number | null } = {}): FormValues {
   return {
     ticker: "",
     fills: [emptyFill("buy", date), emptyFill("sell", date)],
-    stopPct: "",
-    targetPct: "",
+    stopPct: defaults.stopPct != null ? String(defaults.stopPct) : "",
+    targetPct: defaults.targetPct != null ? String(defaults.targetPct) : "",
     fxRate: "",
     setupTags: [],
     emotionTags: [],
