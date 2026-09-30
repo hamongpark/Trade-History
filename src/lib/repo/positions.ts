@@ -79,15 +79,19 @@ function toView(row: PositionRow, execs: ExecutionRow[], fx: { rate: number; pro
 async function resolveFx(rows: PositionRow[]) {
   const db = await getDb();
   const byDate = new Map<string, { rate: number; provisional: boolean }>();
-  for (const date of new Set(rows.filter((r) => r.fxRate == null).map((r) => r.tradeDate))) {
-    const q = await getUsdKrw(date);
-    byDate.set(date, q);
-    if (!q.provisional)
-      await db
-        .update(schema.positions)
-        .set({ fxRate: q.rate })
-        .where(and(eq(schema.positions.tradeDate, date), isNull(schema.positions.fxRate)));
-  }
+  const dates = [...new Set(rows.filter((r) => r.fxRate == null).map((r) => r.tradeDate))];
+  // 날짜별 조회를 동시에 처리 (순차 조회 시 화면 로딩이 날짜 수만큼 길어짐)
+  await Promise.all(
+    dates.map(async (date) => {
+      const q = await getUsdKrw(date);
+      byDate.set(date, q);
+      if (!q.provisional)
+        await db
+          .update(schema.positions)
+          .set({ fxRate: q.rate })
+          .where(and(eq(schema.positions.tradeDate, date), isNull(schema.positions.fxRate)));
+    }),
+  );
   return (r: PositionRow) => (r.fxRate != null ? { rate: r.fxRate, provisional: false } : byDate.get(r.tradeDate)!);
 }
 

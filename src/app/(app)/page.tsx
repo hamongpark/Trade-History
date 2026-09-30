@@ -39,7 +39,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     getDb(),
     listCashFlows(),
   ]);
-  const capitalPositions = await listPositions({ from: settings.rules.capitalStartDate ?? undefined });
+  const start = settings.rules.capitalStartDate;
+  // 잔고 계산 범위가 이미 불러온 기간 안이면 다시 조회하지 않는다
+  const capitalPositions = start && start >= from ? all.filter((p) => p.tradeDate >= start) : await listPositions({ from: start ?? undefined });
   const [latestReport] = await db
     .select({ id: schema.aiReports.id, focus: schema.aiReports.focus, periodStart: schema.aiReports.periodStart })
     .from(schema.aiReports)

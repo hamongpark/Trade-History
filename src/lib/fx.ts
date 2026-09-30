@@ -13,22 +13,29 @@ export interface FxQuote {
   provisional: boolean;
 }
 
+const TIMEOUT_MS = 2500;
+/** 조회 실패한 날짜는 잠시 다시 묻지 않는다 (화면이 매번 느려지지 않도록) */
+const RETRY_AFTER_MS = 10 * 60_000;
+const failedAt = new Map<string, number>();
+
+async function fetchJson(url: string) {
+  const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const parsed = parseFrankfurter(await res.json());
+  if (!parsed) throw new Error("환율 응답 형식 오류");
+  return parsed;
+}
+
+/** 두 주소를 동시에 조회해 먼저 성공한 값을 쓴다 (최대 2.5초) */
 async function fetchFrankfurter(date: string) {
-  const urls = [
-    `https://api.frankfurter.dev/v1/${date}?base=USD&symbols=KRW`,
-    `https://api.frankfurter.app/${date}?from=USD&to=KRW`,
-  ];
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
-      if (!res.ok) continue;
-      const parsed = parseFrankfurter(await res.json());
-      if (parsed) return parsed;
-    } catch {
-      // 다음 주소 시도
-    }
+  try {
+    return await Promise.any([
+      fetchJson(`https://api.frankfurter.dev/v1/${date}?base=USD&symbols=KRW`),
+      fetchJson(`https://api.frankfurter.app/${date}?from=USD&to=KRW`),
+    ]);
+  } catch {
+    return null;
   }
-  return null;
 }
 
 /**
@@ -40,8 +47,11 @@ export async function getUsdKrw(date: string): Promise<FxQuote> {
   const [cached] = await db.select().from(schema.fxRates).where(eq(schema.fxRates.date, date));
   if (cached) return { rate: cached.rate, rateDate: cached.rateDate, source: cached.source, provisional: false };
 
-  const fetched = await fetchFrankfurter(date);
+  const failed = failedAt.get(date);
+  const fetched = failed && Date.now() - failed < RETRY_AFTER_MS ? null : await fetchFrankfurter(date);
+  if (!fetched) failedAt.set(date, failed ?? Date.now());
   if (fetched) {
+    failedAt.delete(date);
     // 요청일 환율이 이미 나왔거나, 충분히 지난 날짜(주말·휴일)면 확정으로 보고 캐시
     const settled = fetched.rateDate === date || date < addDays(etDate(new Date()), -3);
     if (settled)

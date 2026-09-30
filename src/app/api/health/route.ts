@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
+import { addDays, etDate } from "@/lib/domain/time";
+import { getUsdKrw } from "@/lib/fx";
 import { activeProviders } from "@/lib/market-data";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +54,10 @@ export async function GET() {
     const db = await getDb();
     const r = await db.execute(sql`select count(*)::int as n from positions`);
     const rows = (Array.isArray(r) ? r : (r as { rows: unknown[] }).rows) as { n: number }[];
-    return NextResponse.json({ ok: true, db: `연결 성공 (포지션 ${rows[0]?.n ?? 0}건)`, marketData, env });
+    const t0 = Date.now();
+    const q = await getUsdKrw(addDays(etDate(new Date()), -1));
+    const fx = `${q.source} ${q.rate} (${q.rateDate}, ${Date.now() - t0}ms)`;
+    return NextResponse.json({ ok: true, db: `연결 성공 (포지션 ${rows[0]?.n ?? 0}건)`, fx, marketData, env });
   } catch (e) {
     const err = e as Error & { cause?: Error & { code?: string } };
     return NextResponse.json(
