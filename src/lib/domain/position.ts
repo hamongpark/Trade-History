@@ -1,4 +1,4 @@
-import type { Execution, PositionMetrics, Side } from "./types";
+import type { Execution, PositionMetrics, PositionRecord, PositionView, Side } from "./types";
 
 const EPS = 1e-9;
 
@@ -12,7 +12,7 @@ export function sortExecutions<T extends { executedAt: Date; side: Side }>(list:
 }
 
 /** 평균단가 방식으로 롱 포지션 손익을 계산한다. */
-export function computeMetrics(executions: Execution[], plannedStop: number | null = null): PositionMetrics {
+export function computeMetrics(executions: Execution[], stopPct: number | null = null): PositionMetrics {
   if (executions.length === 0) throw new Error("체결 내역이 없습니다");
   const fills = sortExecutions(executions);
 
@@ -51,7 +51,7 @@ export function computeMetrics(executions: Execution[], plannedStop: number | nu
   const avgEntry = buyQty > 0 ? buyValue / buyQty : 0;
   const netPnl = realized - fees;
   const basis = avgEntry * maxQty;
-  const riskPerShare = plannedStop != null ? avgEntry - plannedStop : 0;
+  const riskPerShare = stopPct != null && stopPct > 0 ? (avgEntry * stopPct) / 100 : 0;
   const openedAt = fills[0].executedAt;
   const finalClosedAt = status === "closed" ? closedAt : null;
 
@@ -126,4 +126,23 @@ export function groupIntoPositions(list: RawExecution[]): GroupResult {
   }
   groups.sort((a, b) => a.executions[0].executedAt.getTime() - b.executions[0].executedAt.getTime());
   return { groups, orphans };
+}
+
+/** 손절율·목표율(%)을 평균 매수가 기준 가격으로 */
+export function pctToPrices(avgEntry: number, stopPct: number | null, targetPct: number | null) {
+  return {
+    stopPrice: stopPct != null && avgEntry > 0 ? avgEntry * (1 - stopPct / 100) : null,
+    targetPrice: targetPct != null && avgEntry > 0 ? avgEntry * (1 + targetPct / 100) : null,
+  };
+}
+
+/** 저장된 레코드 + 체결로 화면용 뷰를 만든다 (USD 지표 + 원화 환산) */
+export function buildView(record: PositionRecord): PositionView {
+  const metrics = computeMetrics(record.executions, record.stopPct);
+  return {
+    ...record,
+    metrics,
+    krw: { net: metrics.netPnl * record.fxRate, gross: metrics.grossPnl * record.fxRate, fees: metrics.fees * record.fxRate },
+    ...pctToPrices(metrics.avgEntry, record.stopPct, record.targetPct),
+  };
 }

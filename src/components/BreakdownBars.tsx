@@ -1,5 +1,5 @@
 import type { Bucket } from "@/lib/domain/stats";
-import { pct, usd } from "@/lib/format";
+import { pct, won } from "@/lib/format";
 
 /** 항목별 합계 손익을 0 기준 좌우 막대로 표시. 행마다 수치를 함께 적어 표 역할도 한다 */
 export function BreakdownBars({ buckets, minCount = 1 }: { buckets: Bucket[]; minCount?: number }) {
@@ -16,7 +16,7 @@ export function BreakdownBars({ buckets, minCount = 1 }: { buckets: Bucket[]; mi
             <div className="mb-1 flex items-baseline justify-between gap-2 text-[13px]">
               <span className="truncate text-ink">{b.label}</span>
               <span className="tnum shrink-0 text-ink-2">
-                {b.count}건 · 승률 {pct(b.winRate, 0, false)} · <span className={pos ? "text-profit" : "text-loss"}>{usd(b.netPnl)}</span>
+                {b.count}건 · 승률 {pct(b.winRate, 0, false)} · <span className={pos ? "text-profit" : "text-loss"}>{won(b.netPnl)}</span>
               </span>
             </div>
             <div className="relative h-2 rounded bg-surface-2">

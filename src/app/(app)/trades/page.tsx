@@ -41,7 +41,7 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
         )}
         {list.length === 0 && <p className="py-12 text-center text-sm text-ink-3">기록이 없습니다</p>}
         {[...byDay.entries()].map(([day, ps]) => {
-          const total = ps.reduce((a, p) => a + (p.metrics.status === "closed" ? p.metrics.netPnl : 0), 0);
+          const total = ps.reduce((a, p) => a + (p.metrics.status === "closed" ? p.krw.net : 0), 0);
           return (
             <section key={day}>
               <div className="mb-1.5 flex items-baseline justify-between px-1">
@@ -62,7 +62,7 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        {p.metrics.status === "closed" ? <Money value={p.metrics.netPnl} className="font-semibold" /> : <span className="text-sm text-warn">보유 중</span>}
+                        {p.metrics.status === "closed" ? <Money value={p.krw.net} className="font-semibold" /> : <span className="text-sm text-warn">보유 중</span>}
                         {p.metrics.rMultiple != null && <p className="tnum text-xs text-ink-3">{p.metrics.rMultiple.toFixed(2)}R</p>}
                       </div>
                     </Link>

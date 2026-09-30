@@ -51,7 +51,7 @@ export interface PositionMetrics {
   netPnl: number;
   /** 순손익 / (평균 매수가 × 최대 보유수량) */
   returnPct: number;
-  /** 계획 손절가가 있을 때: 순손익 / 계획 위험금액 */
+  /** 계획 손절율이 있을 때: 순손익 / 계획 위험금액 */
   rMultiple: number | null;
   openedAt: Date;
   closedAt: Date | null;
@@ -65,8 +65,14 @@ export interface PositionRecord {
   tradeDate: string;
   openedAt: Date;
   closedAt: Date | null;
-  plannedStop: number | null;
-  plannedTarget: number | null;
+  /** 계획 손절율 (%) */
+  stopPct: number | null;
+  /** 계획 목표율 (%) */
+  targetPct: number | null;
+  /** 적용 환율 (원/달러) */
+  fxRate: number;
+  /** 환율이 확정값이 아니라 임시값인지 */
+  fxProvisional: boolean;
   setupTags: string[];
   emotionTags: string[];
   confidence: number | null;
@@ -82,4 +88,9 @@ export interface PositionRecord {
 
 export interface PositionView extends PositionRecord {
   metrics: PositionMetrics;
+  /** 원화 환산 금액 (metrics 의 USD 금액 × fxRate) */
+  krw: { net: number; gross: number; fees: number };
+  /** 손절율·목표율로 계산한 가격 (평균 매수가 기준) */
+  stopPrice: number | null;
+  targetPrice: number | null;
 }

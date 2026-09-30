@@ -26,3 +26,27 @@ export function price(x: number | null | undefined): string {
   if (x == null) return "-";
   return x >= 1 ? x.toFixed(2) : x.toFixed(4);
 }
+
+/** 원화 금액 (원 단위 반올림). 예: +82,300원 */
+export function won(x: number, opts: { sign?: boolean } = {}): string {
+  const { sign = true } = opts;
+  const r = Math.round(x);
+  const s = Math.abs(r).toLocaleString("ko-KR");
+  if (r === 0) return "0원";
+  return `${r < 0 ? "−" : sign ? "+" : ""}${s}원`;
+}
+
+/** 좁은 공간용 원화 축약. 예: +8.2만, −125만, +1.3억 */
+export function wonCompact(x: number): string {
+  const a = Math.abs(x);
+  const sign = x > 0 ? "+" : x < 0 ? "−" : "";
+  if (a >= 1e8) return `${sign}${(a / 1e8).toFixed(1)}억`;
+  if (a >= 1e6) return `${sign}${Math.round(a / 1e4)}만`;
+  if (a >= 1e4) return `${sign}${(a / 1e4).toFixed(1)}만`;
+  return `${sign}${Math.round(a).toLocaleString("ko-KR")}`;
+}
+
+/** USD 주가 (종목 가격은 달러 그대로 표시) */
+export function dollar(x: number | null | undefined): string {
+  return x == null ? "-" : `$${price(x)}`;
+}

@@ -8,7 +8,7 @@ import { Stat } from "@/components/Stat";
 import { getDb, schema } from "@/lib/db";
 import { computeStats } from "@/lib/domain/stats";
 import { addDays, etDate, formatHold } from "@/lib/domain/time";
-import { pct, usd } from "@/lib/format";
+import { pct, won } from "@/lib/format";
 import { countIncomplete, listPositions } from "@/lib/repo/positions";
 import { getSettings } from "@/lib/settings";
 
@@ -45,7 +45,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const equity30 = equity.map((e) => ({ date: e.date, cum: e.cum - base }));
 
   const todayPnl = todayRow?.netPnl ?? 0;
-  const lossUsed = settings.dailyLossLimit > 0 ? Math.max(0, -todayPnl) / settings.dailyLossLimit : 0;
+  const lossUsed = settings.dailyLossLimitKrw > 0 ? Math.max(0, -todayPnl) / settings.dailyLossLimitKrw : 0;
   const tradeUsed = todayTrades / settings.maxTradesPerDay;
 
   return (
@@ -80,7 +80,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
         {/* 오늘의 규칙 가드 */}
         <section className="card flex flex-col gap-3 p-4">
-          <Gauge label="일 손실 한도" used={lossUsed} text={`${usd(Math.min(0, todayPnl), { sign: false })} / −$${settings.dailyLossLimit}`} />
+          <Gauge label="일 손실 한도" used={lossUsed} text={`${won(Math.min(0, todayPnl), { sign: false })} / −${won(settings.dailyLossLimitKrw, { sign: false })}`} />
           <Gauge label="오늘 매매 횟수" used={tradeUsed} text={`${todayTrades} / ${settings.maxTradesPerDay}회`} />
           {(lossUsed >= 1 || tradeUsed >= 1) && (
             <p className="rounded-lg bg-warn/15 px-3 py-2 text-sm text-warn">⚠ 오늘 한도에 도달했습니다. 오늘은 여기까지.</p>

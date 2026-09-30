@@ -6,7 +6,7 @@ interface S {
   inputTimezone: string;
   displayTimezone: string;
   feeRatePct: number;
-  dailyLossLimit: number;
+  dailyLossLimitKrw: number;
   maxTradesPerDay: number;
   setupTags: string[];
   emotionTags: string[];
@@ -32,7 +32,7 @@ export function SettingsForm({ initial }: { initial: S }) {
         inputTimezone: s.inputTimezone,
         displayTimezone: s.displayTimezone,
         feeRatePct: Number(s.feeRatePct),
-        dailyLossLimit: Number(s.dailyLossLimit),
+        dailyLossLimitKrw: Number(s.dailyLossLimitKrw),
         maxTradesPerDay: Number(s.maxTradesPerDay),
         setupTags: split(s.setupText),
         emotionTags: split(s.emotionText),
@@ -65,8 +65,8 @@ export function SettingsForm({ initial }: { initial: S }) {
           <input className="input" inputMode="decimal" value={s.feeRatePct} onChange={(e) => setS({ ...s, feeRatePct: e.target.value as unknown as number })} />
         </div>
         <div className={row}>
-          <span className="text-sm text-ink-2">일 손실 한도 $</span>
-          <input className="input" inputMode="decimal" value={s.dailyLossLimit} onChange={(e) => setS({ ...s, dailyLossLimit: e.target.value as unknown as number })} />
+          <span className="text-sm text-ink-2">일 손실 한도 (원)</span>
+          <input className="input" inputMode="decimal" value={s.dailyLossLimitKrw} onChange={(e) => setS({ ...s, dailyLossLimitKrw: e.target.value as unknown as number })} />
         </div>
         <div className={row}>
           <span className="text-sm text-ink-2">일 최대 매매</span>

@@ -1,7 +1,7 @@
 "use client";
 import { BaselineSeries, ColorType, createChart } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
-import { usd } from "@/lib/format";
+import { won, wonCompact } from "@/lib/format";
 import { CHART_COLORS as C } from "./theme";
 
 /** 누적 손익 곡선. 0 위는 빨강, 아래는 파랑 (국내식) */
@@ -15,6 +15,7 @@ export function EquityChart({ points, height = 160 }: { points: { date: string; 
     const chart = createChart(el.current, {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: C.muted, fontSize: 10, attributionLogo: false },
+      localization: { priceFormatter: (p: number) => wonCompact(p) },
       grid: { vertLines: { visible: false }, horzLines: { color: C.grid } },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
@@ -45,7 +46,7 @@ export function EquityChart({ points, height = 160 }: { points: { date: string; 
   return (
     <div>
       <p className="tnum mb-1 text-xs text-ink-2">
-        {shown.date} 누적 {usd(shown.cum)}
+        {shown.date} 누적 {won(shown.cum)}
       </p>
       <div ref={el} style={{ height }} className="w-full" />
     </div>

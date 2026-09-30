@@ -1,10 +1,11 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "../db";
-import { computeMetrics } from "../domain/position";
+import { buildView, computeMetrics } from "../domain/position";
 import { etDate } from "../domain/time";
 import type { Excursion, PositionRecord, PositionView } from "../domain/types";
+import { getUsdKrw } from "../fx";
 import { getSettings } from "../settings";
 
 export const executionInputSchema = z.object({
@@ -18,8 +19,12 @@ export const executionInputSchema = z.object({
 
 export const positionInputSchema = z.object({
   ticker: z.string().trim().min(1).max(12).transform((s) => s.toUpperCase()),
-  plannedStop: z.number().positive().nullable().optional(),
-  plannedTarget: z.number().positive().nullable().optional(),
+  /** 손절율 % (평균 매수가 대비 하락폭) */
+  stopPct: z.number().positive().max(100).nullable().optional(),
+  /** 목표율 % (평균 매수가 대비 상승폭) */
+  targetPct: z.number().positive().max(1000).nullable().optional(),
+  /** 적용 환율 (원/달러). 비우면 거래일 기준환율 자동 적용 */
+  fxRate: z.number().positive().max(10000).nullable().optional(),
   setupTags: z.array(z.string()).default([]),
   emotionTags: z.array(z.string()).default([]),
   confidence: z.number().int().min(1).max(5).nullable().optional(),
@@ -34,7 +39,7 @@ export type PositionInput = z.infer<typeof positionInputSchema>;
 type PositionRow = typeof schema.positions.$inferSelect;
 type ExecutionRow = typeof schema.executions.$inferSelect;
 
-function toView(row: PositionRow, execs: ExecutionRow[]): PositionView {
+function toView(row: PositionRow, execs: ExecutionRow[], fx: { rate: number; provisional: boolean }): PositionView {
   const executions = execs.map((e) => ({
     id: e.id,
     side: e.side,
@@ -49,8 +54,10 @@ function toView(row: PositionRow, execs: ExecutionRow[]): PositionView {
     tradeDate: row.tradeDate,
     openedAt: row.openedAt,
     closedAt: row.closedAt,
-    plannedStop: row.plannedStop,
-    plannedTarget: row.plannedTarget,
+    stopPct: row.stopPct,
+    targetPct: row.targetPct,
+    fxRate: fx.rate,
+    fxProvisional: fx.provisional,
     setupTags: row.setupTags,
     emotionTags: row.emotionTags,
     confidence: row.confidence,
@@ -63,7 +70,23 @@ function toView(row: PositionRow, execs: ExecutionRow[]): PositionView {
     excursion: (row.excursion as Excursion | null) ?? null,
     executions,
   };
-  return { ...record, metrics: computeMetrics(executions, row.plannedStop) };
+  return buildView(record);
+}
+
+/** 환율이 비어 있는 포지션은 거래일 환율을 조회해 채운다 (확정값만 저장) */
+async function resolveFx(rows: PositionRow[]) {
+  const db = await getDb();
+  const byDate = new Map<string, { rate: number; provisional: boolean }>();
+  for (const date of new Set(rows.filter((r) => r.fxRate == null).map((r) => r.tradeDate))) {
+    const q = await getUsdKrw(date);
+    byDate.set(date, q);
+    if (!q.provisional)
+      await db
+        .update(schema.positions)
+        .set({ fxRate: q.rate })
+        .where(and(eq(schema.positions.tradeDate, date), isNull(schema.positions.fxRate)));
+  }
+  return (r: PositionRow) => (r.fxRate != null ? { rate: r.fxRate, provisional: false } : byDate.get(r.tradeDate)!);
 }
 
 async function attach(rows: PositionRow[]): Promise<PositionView[]> {
@@ -76,7 +99,8 @@ async function attach(rows: PositionRow[]): Promise<PositionView[]> {
     .orderBy(asc(schema.executions.executedAt), asc(schema.executions.id));
   const byPos = new Map<number, ExecutionRow[]>();
   for (const e of execs) byPos.set(e.positionId, [...(byPos.get(e.positionId) ?? []), e]);
-  return rows.filter((r) => byPos.has(r.id)).map((r) => toView(r, byPos.get(r.id)!));
+  const fxOf = await resolveFx(rows);
+  return rows.filter((r) => byPos.has(r.id)).map((r) => toView(r, byPos.get(r.id)!, fxOf(r)));
 }
 
 export async function listPositions(opts: { from?: string; to?: string; ticker?: string } = {}): Promise<PositionView[]> {
@@ -108,14 +132,21 @@ async function normalize(input: PositionInput) {
     qty: e.qty,
     fee: e.fee ?? Math.round(e.price * e.qty * feeRatePct) / 100, // 센트 단위 반올림
   }));
-  const metrics = computeMetrics(executions, input.plannedStop ?? null);
+  const metrics = computeMetrics(executions, input.stopPct ?? null);
+  const tradeDate = etDate(metrics.openedAt);
+  let fxRate = input.fxRate ?? null;
+  if (fxRate == null) {
+    const q = await getUsdKrw(tradeDate);
+    if (!q.provisional) fxRate = q.rate;
+  }
   const values = {
     ticker: input.ticker,
-    tradeDate: etDate(metrics.openedAt),
+    tradeDate,
     openedAt: metrics.openedAt,
     closedAt: metrics.closedAt,
-    plannedStop: input.plannedStop ?? null,
-    plannedTarget: input.plannedTarget ?? null,
+    stopPct: input.stopPct ?? null,
+    targetPct: input.targetPct ?? null,
+    fxRate,
     setupTags: input.setupTags,
     emotionTags: input.emotionTags,
     confidence: input.confidence ?? null,

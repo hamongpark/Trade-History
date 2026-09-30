@@ -48,10 +48,11 @@ function compactTrade(p: PositionView) {
     avgEntry: +m.avgEntry.toFixed(4),
     avgExit: m.avgExit ? +m.avgExit.toFixed(4) : null,
     maxQty: m.maxQty,
-    netPnl: +m.netPnl.toFixed(2),
+    netPnlUsd: +m.netPnl.toFixed(2),
+    netPnlKrw: Math.round(p.krw.net),
     r: m.rMultiple == null ? null : +m.rMultiple.toFixed(2),
-    stop: p.plannedStop,
-    target: p.plannedTarget,
+    stopPct: p.stopPct,
+    targetPct: p.targetPct,
     setup: p.setupTags,
     emotion: p.emotionTags,
     confidence: p.confidence,
@@ -114,7 +115,7 @@ export async function buildReportInput(weekStart: string): Promise<ReportInput> 
   };
 }
 
-const DATA_NOTE = "금액 단위 USD, 퍼센트 필드는 % 값, holdSec 는 초.";
+const DATA_NOTE = "통계(summary·daily·breakdowns 등)의 금액은 원화(KRW). 매매별 가격(avgEntry 등)은 USD, 손익은 netPnlKrw(원)·netPnlUsd 둘 다 제공. 퍼센트 필드는 % 값, holdSec 는 초. 리포트의 금액은 원화로 표기하세요.";
 
 /** Claude 앱(구독)에 그대로 붙여넣을 요청문 */
 export function buildReportPrompt(input: ReportInput): string {

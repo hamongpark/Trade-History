@@ -1,10 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
-import { computeMetrics, groupIntoPositions, type RawExecution } from "@/lib/domain/position";
-import { addDays, fmt, localToUtc } from "@/lib/domain/time";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { computeMetrics, groupIntoPositions, pctToPrices, type RawExecution } from "@/lib/domain/position";
+import { addDays, etDate, fmt, localToUtc } from "@/lib/domain/time";
 import { CAPTURE_PROMPT, parsePastedExtraction, type Extraction } from "@/lib/domain/pasted";
-import { price as fmtPrice, pct, pnlClass, usd } from "@/lib/format";
+import { price as fmtPrice, pct, pnlClass, usd, won } from "@/lib/format";
 import { CLAUDE_APP_URL, copyText } from "@/lib/clipboard";
 import { downscaleImage } from "@/lib/image";
 import { emptyFill, emptyValues, newKey, type FillRow, type FormValues } from "@/lib/trade-form";
@@ -21,8 +21,9 @@ const toNum = (s: string) => (s.trim() === "" ? null : Number(s));
 function toPayload(v: FormValues, tz: string) {
   return {
     ticker: v.ticker,
-    plannedStop: toNum(v.plannedStop),
-    plannedTarget: toNum(v.plannedTarget),
+    stopPct: toNum(v.stopPct),
+    targetPct: toNum(v.targetPct),
+    fxRate: toNum(v.fxRate),
     setupTags: v.setupTags,
     emotionTags: v.emotionTags,
     confidence: v.confidence,
@@ -84,14 +85,38 @@ export function TradeForm({
       const ex = toPayload(v, tz).executions.map((e) => ({
         ...e,
         executedAt: new Date(e.executedAt),
-        fee: e.fee ?? (e.price * e.qty * settings.feeRatePct) / 100,
+        fee: e.fee ?? Math.round(e.price * e.qty * settings.feeRatePct) / 100, // 서버와 같은 센트 단위 반올림
       }));
       if (!ex.length) return null;
-      return computeMetrics(ex, toNum(v.plannedStop));
+      return computeMetrics(ex, toNum(v.stopPct));
     } catch {
       return null;
     }
   }, [v, tz, settings.feeRatePct]);
+
+  // 첫 체결의 미국 거래일 기준 환율을 자동으로 불러와 미리보기·안내에 사용
+  const tradeDate = useMemo(() => {
+    const first = v.fills.find((f) => f.date && f.time);
+    try {
+      return first ? etDate(localToUtc(first.date, first.time, tz)) : null;
+    } catch {
+      return null;
+    }
+  }, [v.fills, tz]);
+  const [autoFx, setAutoFx] = useState<{ rate: number; rateDate: string; provisional: boolean } | null>(null);
+  useEffect(() => {
+    const date = tradeDate ?? defaultDate;
+    let alive = true;
+    fetch(`/api/fx?date=${date}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => alive && j && setAutoFx(j))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [tradeDate, defaultDate]);
+  const rate = toNum(v.fxRate) ?? autoFx?.rate ?? null;
+  const prices = preview ? pctToPrices(preview.avgEntry, toNum(v.stopPct), toNum(v.targetPct)) : null;
 
   /** 추출 결과(API 또는 Claude 앱 붙여넣기)를 포지션 단위로 묶어 폼/목록에 반영 */
   function applyExtraction(ex: Extraction) {
@@ -277,7 +302,7 @@ export function TradeForm({
                     <b>{d.ticker}</b> <span className="text-ink-3">{d.fills[0].time}–{d.fills[d.fills.length - 1].time} · {d.fills.length}체결</span>
                   </span>
                   <span className="flex items-center gap-3">
-                    {m && <span className={`tnum ${pnlClass(m.grossPnl)}`}>{usd(m.grossPnl)}</span>}
+                    {m && <span className={`tnum ${pnlClass(m.grossPnl)}`}>{rate ? won(m.grossPnl * rate) : usd(m.grossPnl)}</span>}
                     <button
                       className="text-accent"
                       onClick={() => {
@@ -336,7 +361,9 @@ export function TradeForm({
         <section className="card grid grid-cols-3 gap-2 p-3 text-center">
           <div>
             <p className="text-[11px] text-ink-3">순손익 (예상)</p>
-            <p className={`tnum font-semibold ${pnlClass(preview.netPnl)}`}>{preview.status === "closed" ? usd(preview.netPnl) : "미청산"}</p>
+            <p className={`tnum font-semibold ${pnlClass(preview.netPnl)}`}>
+              {preview.status !== "closed" ? "미청산" : rate ? won(preview.netPnl * rate) : usd(preview.netPnl)}
+            </p>
           </div>
           <div>
             <p className="text-[11px] text-ink-3">수익률</p>
@@ -347,19 +374,39 @@ export function TradeForm({
             <p className="tnum font-semibold">{preview.rMultiple != null ? `${preview.rMultiple.toFixed(2)}R` : "-"}</p>
           </div>
           <p className="col-span-3 text-[11px] text-ink-3">
-            평단 {fmtPrice(preview.avgEntry)} → {fmtPrice(preview.avgExit)} · 최대 {preview.maxQty}주
+            평단 ${fmtPrice(preview.avgEntry)} → ${fmtPrice(preview.avgExit)} · 최대 {preview.maxQty}주
+            {preview.status === "closed" && ` · ${usd(preview.netPnl)}`}
           </p>
         </section>
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Field label="계획 손절가">
-          <input className="input" inputMode="decimal" placeholder="$" value={v.plannedStop} onChange={(e) => set("plannedStop", e.target.value)} />
+        <Field label="손절율 (%)">
+          <PctInput sign="−" placeholder="예: 1.5" value={v.stopPct} onChange={(x) => set("stopPct", x)} />
+          {prices?.stopPrice != null && <span className="tnum text-xs text-ink-3">→ ${fmtPrice(prices.stopPrice)}</span>}
         </Field>
-        <Field label="계획 목표가">
-          <input className="input" inputMode="decimal" placeholder="$" value={v.plannedTarget} onChange={(e) => set("plannedTarget", e.target.value)} />
+        <Field label="목표율 (%)">
+          <PctInput sign="+" placeholder="예: 3" value={v.targetPct} onChange={(x) => set("targetPct", x)} />
+          {prices?.targetPrice != null && <span className="tnum text-xs text-ink-3">→ ${fmtPrice(prices.targetPrice)}</span>}
         </Field>
       </div>
+
+      <Field label="적용 환율 (원/$)">
+        <input
+          className="input"
+          inputMode="decimal"
+          placeholder={autoFx ? `자동 ${autoFx.rate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}` : "자동"}
+          value={v.fxRate}
+          onChange={(e) => set("fxRate", e.target.value)}
+        />
+        <span className="text-xs text-ink-3">
+          {autoFx
+            ? autoFx.provisional
+              ? "기준환율을 불러오지 못해 임시값입니다. 토스 체결 환율을 직접 입력하세요"
+              : `비워두면 ${autoFx.rateDate} 기준환율(ECB) 적용 · 토스 적용 환율을 넣어도 됩니다`
+            : "비워두면 거래일 기준환율 자동 적용"}
+        </span>
+      </Field>
 
       <Field label="셋업">
         <Chips options={settings.setupTags} selected={v.setupTags} onToggle={(t) => toggle("setupTags", t)} />
@@ -404,7 +451,8 @@ export function TradeForm({
         <textarea className="input min-h-16" placeholder="복기, 배운 점" value={v.note} onChange={(e) => set("note", e.target.value)} />
       </Field>
 
-      <button className="btn btn-primary sticky bottom-24" onClick={submit} disabled={!!busy}>
+      {error && <p className="rounded-lg bg-loss/15 px-3 py-2 text-sm text-ink">{error}</p>}
+      <button className="btn btn-primary mb-4 w-full" onClick={submit} disabled={!!busy}>
         {busy ?? (positionId ? "수정 저장" : "저장")}
       </button>
     </div>
@@ -429,6 +477,22 @@ function Chips({ options, selected, onToggle }: { options: string[]; selected: s
           {t}
         </button>
       ))}
+    </div>
+  );
+}
+
+function PctInput({ sign, placeholder, value, onChange }: { sign: string; placeholder: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3">{sign}</span>
+      <input
+        className="input !pr-8 !pl-7"
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ""))}
+      />
+      <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink-3">%</span>
     </div>
   );
 }

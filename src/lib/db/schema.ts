@@ -21,8 +21,12 @@ export const positions = pgTable(
     tradeDate: text("trade_date").notNull(),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
     closedAt: timestamp("closed_at", { withTimezone: true }),
-    plannedStop: doublePrecision("planned_stop"),
-    plannedTarget: doublePrecision("planned_target"),
+    /** 계획 손절율 (%, 평균 매수가 대비 하락폭. 1.5 = -1.5%) */
+    stopPct: doublePrecision("stop_pct"),
+    /** 계획 목표율 (%, 평균 매수가 대비 상승폭) */
+    targetPct: doublePrecision("target_pct"),
+    /** 적용 환율 (원/달러). 거래일 기준으로 저장, 수동 수정 가능 */
+    fxRate: doublePrecision("fx_rate"),
     setupTags: text("setup_tags").array().notNull().default([]),
     emotionTags: text("emotion_tags").array().notNull().default([]),
     confidence: integer("confidence"),
@@ -89,4 +93,14 @@ export const aiReports = pgTable("ai_reports", {
 export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: jsonb("value").notNull(),
+});
+
+/** 일별 USD/KRW 환율 캐시 */
+export const fxRates = pgTable("fx_rates", {
+  date: text("date").primaryKey(),
+  rate: doublePrecision("rate").notNull(),
+  /** 공급자가 실제로 반환한 기준일 (주말·휴일이면 직전 영업일) */
+  rateDate: text("rate_date").notNull(),
+  source: text("source").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });

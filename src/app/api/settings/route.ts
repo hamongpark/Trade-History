@@ -8,7 +8,7 @@ const patchSchema = z
     inputTimezone: z.string(),
     displayTimezone: z.string(),
     feeRatePct: z.number().min(0).max(5),
-    dailyLossLimit: z.number().min(0),
+    dailyLossLimitKrw: z.number().min(0),
     maxTradesPerDay: z.number().int().min(1).max(100),
     setupTags: z.array(z.string().trim().min(1)).max(40),
     emotionTags: z.array(z.string().trim().min(1)).max(40),

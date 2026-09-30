@@ -1,12 +1,7 @@
 import Link from "next/link";
 import type { DailyPnl } from "@/lib/domain/stats";
 import { addDays } from "@/lib/domain/time";
-
-const compact = (x: number) => {
-  const a = Math.abs(x);
-  const s = a >= 1000 ? `${(a / 1000).toFixed(a >= 10000 ? 0 : 1)}k` : a.toFixed(0);
-  return `${x > 0 ? "+" : x < 0 ? "−" : ""}${s}`;
-};
+import { won, wonCompact } from "@/lib/format";
 
 /** 평일(월~금) 기준 월간 손익 달력. 셀 색 농도 = 해당 월 최대 손익 대비 크기 */
 export function PnlCalendar({ month, daily, today }: { month: string; daily: DailyPnl[]; today: string }) {
@@ -35,17 +30,17 @@ export function PnlCalendar({ month, daily, today }: { month: string; daily: Dai
           const d = map.get(date);
           const intensity = d ? 14 + Math.round((Math.abs(d.netPnl) / max) * 46) : 0;
           const color = d && d.netPnl > 0 ? "var(--profit)" : "var(--loss)";
-          const style = d && Math.abs(d.netPnl) >= 0.005 ? { background: `color-mix(in oklab, ${color} ${intensity}%, var(--surface-2))` } : undefined;
+          const style = d && Math.abs(d.netPnl) >= 1 ? { background: `color-mix(in oklab, ${color} ${intensity}%, var(--surface-2))` } : undefined;
           const body = (
             <div
               className={`flex h-14 flex-col justify-between rounded-md p-1 ${inMonth ? "bg-surface-2" : "opacity-30"} ${date === today ? "ring-1 ring-ink-2" : ""}`}
               style={style}
-              title={d ? `${date} ${d.count}건 ${d.netPnl.toFixed(2)}` : date}
+              title={d ? `${date} ${d.count}건 ${won(d.netPnl)}` : date}
             >
               <span className="text-[10px] text-ink-2">{Number(date.slice(8))}</span>
               {d && (
                 <span className="tnum text-right text-[11px] font-semibold text-ink">
-                  {compact(d.netPnl)}
+                  {wonCompact(d.netPnl)}
                 </span>
               )}
             </div>

@@ -1,5 +1,6 @@
-import { pnlClass, usd } from "@/lib/format";
+import { pnlClass, won } from "@/lib/format";
 
-export function Money({ value, className = "", digits = 2 }: { value: number; className?: string; digits?: number }) {
-  return <span className={`tnum ${pnlClass(value)} ${className}`}>{usd(value, { digits })}</span>;
+/** 원화 손익 표시 (이익 빨강 / 손실 파랑, 항상 부호) */
+export function Money({ value, className = "" }: { value: number; className?: string }) {
+  return <span className={`tnum ${pnlClass(value)} ${className}`}>{won(value)}</span>;
 }

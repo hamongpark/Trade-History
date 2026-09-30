@@ -7,7 +7,7 @@ import { Stat } from "@/components/Stat";
 import { deriveInsights } from "@/lib/domain/insights";
 import { BREAKDOWN_LABELS, computeStats, type BreakdownKey } from "@/lib/domain/stats";
 import { addDays, etDate, formatHold, mondayOf } from "@/lib/domain/time";
-import { pct, usd } from "@/lib/format";
+import { pct, won } from "@/lib/format";
 import { listPositions } from "@/lib/repo/positions";
 
 export const dynamic = "force-dynamic";
@@ -54,12 +54,12 @@ export default async function AnalysisPage({ searchParams }: PageProps<"/analysi
                 <Stat label="승률" value={pct(s.winRate, 1, false)} sub={`${s.wins}승 ${s.losses}패`} />
                 <Stat label="손익비" value={s.payoff?.toFixed(2) ?? "-"} sub="평균이익/평균손실" />
                 <Stat label="Profit Factor" value={s.profitFactor?.toFixed(2) ?? "-"} />
-                <Stat label="기대값 / 매매" value={usd(s.expectancy)} />
+                <Stat label="기대값 / 매매" value={won(s.expectancy)} />
                 <Stat label="평균 R" value={s.avgR != null ? `${s.avgR.toFixed(2)}R` : "-"} />
-                <Stat label="최대 낙폭" value={usd(s.maxDrawdown)} />
-                <Stat label="평균 이익" value={usd(s.avgWin)} />
-                <Stat label="평균 손실" value={usd(s.avgLoss)} />
-                <Stat label="수수료 합계" value={usd(s.fees, { sign: false })} />
+                <Stat label="최대 낙폭" value={won(s.maxDrawdown)} />
+                <Stat label="평균 이익" value={won(s.avgWin)} />
+                <Stat label="평균 손실" value={won(s.avgLoss)} />
+                <Stat label="수수료 합계" value={won(s.fees, { sign: false })} />
                 <Stat label="보유 (이익)" value={formatHold(s.avgHoldWin)} />
                 <Stat label="보유 (손실)" value={formatHold(s.avgHoldLoss)} />
                 <Stat label="최대 연패" value={`${s.maxLossStreak}연패`} sub={`최대 연승 ${s.maxWinStreak}`} />
@@ -101,7 +101,7 @@ export default async function AnalysisPage({ searchParams }: PageProps<"/analysi
                   <Stat label="매도 후 30분 추가 상승" value={pct(ex.avgPostExitHighWin, 2)} sub="이익 매매 평균" />
                   <Stat label="수익 포착률" value={ex.avgCapture != null ? pct(ex.avgCapture, 0, false) : "-"} />
                   <Stat label="이익→손실 전환" value={`${ex.lossesThatWereGreen}건`} sub="+0.5% 이상이던 손실" />
-                  <Stat label="추격매수" value={`${ex.chase.count}건`} sub={ex.chase.count ? `승률 ${pct(ex.chase.winRate, 0, false)} · 평균 ${usd(ex.chase.avgPnl)}` : "진입 전 10분 +2%↑"} />
+                  <Stat label="추격매수" value={`${ex.chase.count}건`} sub={ex.chase.count ? `승률 ${pct(ex.chase.winRate, 0, false)} · 평균 ${won(ex.chase.avgPnl)}` : "진입 전 10분 +2%↑"} />
                 </div>
               </section>
             )}

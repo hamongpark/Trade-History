@@ -16,10 +16,13 @@
 - `positions`: 티커, ET 거래일, 진입/청산 시각, 계획 손절·목표, 태그 배열, 확신도, 계획 준수, 사유, 메모, 분봉 상태, `excursion`(MAE/MFE 등 캐시 JSON)
 - `executions`: position_id, side, executed_at(UTC), price, qty, fee
 - `candles_1m`: (ticker, ts) PK, OHLCV, source — 공급자 무관 캐시
+- `fx_rates`: 날짜별 USD/KRW 기준환율 캐시 (Frankfurter = ECB 고시, 주말·휴일은 직전 영업일)
+- `positions.stop_pct / target_pct`: 손절율·목표율(%). 가격선·R 은 평균 매수가 × (1 ∓ %) 로 계산
+- `positions.fx_rate`: 적용 환율. 비어 있으면 조회 시 거래일 환율로 채움 (확정값만 저장)
 - `ai_reports`: 기간, 모델, 본문(md), focus, 통계 스냅샷, 토큰 사용량
 - `settings`: key/value(JSON)
 
-손익·보유시간·R 등 파생 지표는 저장하지 않고 체결에서 매번 계산 (`src/lib/domain/position.ts`) → 공식 변경 시 재계산 불필요.
+손익·보유시간·R 등 파생 지표는 저장하지 않고 체결에서 매번 계산 (`src/lib/domain/position.ts`) → 공식 변경 시 재계산 불필요. 지표는 USD 로 계산하고 `krw` 필드(× fx_rate)로 원화 환산, 통계·화면 금액은 원화 기준.
 
 ## 3. 시간 처리
 - 저장은 모두 UTC. 입력은 설정 시간대(기본 KST)로 해석해 변환

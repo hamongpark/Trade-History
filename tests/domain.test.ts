@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeExcursion } from "@/lib/domain/excursion";
-import { computeMetrics, groupIntoPositions } from "@/lib/domain/position";
+import { buildView, computeMetrics, groupIntoPositions, pctToPrices } from "@/lib/domain/position";
 import { computeStats } from "@/lib/domain/stats";
 import { deriveInsights } from "@/lib/domain/insights";
 import { etDate, localToUtc } from "@/lib/domain/time";
@@ -28,7 +28,7 @@ describe("time", () => {
 
 describe("computeMetrics", () => {
   it("단순 매수→매도", () => {
-    const m = computeMetrics([ex("buy", "09:35", 10, 100, 1), ex("sell", "09:40", 10.5, 100, 1)], 9.8);
+    const m = computeMetrics([ex("buy", "09:35", 10, 100, 1), ex("sell", "09:40", 10.5, 100, 1)], 2); // 손절율 2% = $0.2/주
     expect(m.status).toBe("closed");
     expect(m.grossPnl).toBeCloseTo(50);
     expect(m.netPnl).toBeCloseTo(48);
@@ -102,12 +102,12 @@ describe("stats", () => {
       { side: "buy" as const, executedAt: at(open, date), price: 10, qty: 10, fee: 0 },
       { side: "sell" as const, executedAt: at(close, date), price: 10 + pnlPerShare, qty: 10, fee: 0 },
     ];
-    return {
+    return buildView({
       id, ticker: "AAPL", tradeDate: date, openedAt: executions[0].executedAt, closedAt: executions[1].executedAt,
-      plannedStop: null, plannedTarget: null, setupTags: tags, emotionTags: [], confidence: null, followedPlan: null,
-      entryReason: "", exitReason: "", note: "", candlesStatus: "none", candlesError: null, excursion: null,
-      executions, metrics: computeMetrics(executions),
-    };
+      stopPct: null, targetPct: null, fxRate: 1, fxProvisional: false, setupTags: tags, emotionTags: [], confidence: null,
+      followedPlan: null, entryReason: "", exitReason: "", note: "", candlesStatus: "none", candlesError: null, excursion: null,
+      executions,
+    });
   };
   const list = [
     mk(1, "2026-09-21", "09:31", "09:33", 1, ["돌파"]),
@@ -142,5 +142,23 @@ describe("stats", () => {
     const titles = deriveInsights(s).map((i) => i.title);
     expect(titles).toContain("손실 포지션을 오래 버팀");
     expect(titles).toContain("손익비가 낮음");
+  });
+});
+
+describe("원화 환산 · 손절율", () => {
+  it("환율을 곱해 원화 손익, 손절율로 R 과 가격 계산", () => {
+    const executions = [ex("buy", "09:35", 10, 100, 1), ex("sell", "09:40", 10.5, 100, 1)];
+    const v = buildView({
+      id: 1, ticker: "AAPL", tradeDate: "2026-09-22", openedAt: executions[0].executedAt, closedAt: executions[1].executedAt,
+      stopPct: 2, targetPct: 5, fxRate: 1390, fxProvisional: false, setupTags: [], emotionTags: [], confidence: null,
+      followedPlan: null, entryReason: "", exitReason: "", note: "", candlesStatus: "none", candlesError: null, excursion: null,
+      executions,
+    });
+    expect(v.krw.net).toBeCloseTo(48 * 1390);
+    expect(v.krw.fees).toBeCloseTo(2 * 1390);
+    expect(v.metrics.rMultiple).toBeCloseTo(48 / 20);
+    expect(v.stopPrice).toBeCloseTo(9.8);
+    expect(v.targetPrice).toBeCloseTo(10.5);
+    expect(pctToPrices(10, null, null)).toEqual({ stopPrice: null, targetPrice: null });
   });
 });

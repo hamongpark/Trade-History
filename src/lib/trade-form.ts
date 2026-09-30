@@ -13,8 +13,12 @@ export interface FillRow {
 export interface FormValues {
   ticker: string;
   fills: FillRow[];
-  plannedStop: string;
-  plannedTarget: string;
+  /** 손절율 % (평균 매수가 대비 하락폭) */
+  stopPct: string;
+  /** 목표율 % (평균 매수가 대비 상승폭) */
+  targetPct: string;
+  /** 적용 환율. 비워두면 거래일 기준환율 자동 적용 */
+  fxRate: string;
   setupTags: string[];
   emotionTags: string[];
   confidence: number | null;
@@ -35,8 +39,9 @@ export function emptyValues(date: string): FormValues {
   return {
     ticker: "",
     fills: [emptyFill("buy", date), emptyFill("sell", date)],
-    plannedStop: "",
-    plannedTarget: "",
+    stopPct: "",
+    targetPct: "",
+    fxRate: "",
     setupTags: [],
     emotionTags: [],
     confidence: null,

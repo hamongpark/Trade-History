@@ -11,6 +11,7 @@ export interface Bucket {
   avgPnl: number;
 }
 
+/** 금액 필드는 모두 원화(KRW) */
 export interface Summary {
   count: number;
   wins: number;
@@ -118,7 +119,7 @@ function bucketize(list: PositionView[], keyOf: (p: PositionView) => string[] | 
     for (const key of keys) map.set(key, [...(map.get(key) ?? []), p]);
   }
   const buckets = [...map.entries()].map(([key, ps]) => {
-    const pnls = ps.map((p) => p.metrics.netPnl);
+    const pnls = ps.map((p) => p.krw.net);
     const wins = pnls.filter((x) => x > 0).length;
     const net = pnls.reduce((a, b) => a + b, 0);
     return { key, label: key, count: ps.length, wins, winRate: wins / ps.length, netPnl: net, avgPnl: net / ps.length };
@@ -132,11 +133,11 @@ export function computeStats(all: PositionView[]): Stats {
     .filter((p) => p.metrics.status === "closed")
     .sort((a, b) => a.metrics.openedAt.getTime() - b.metrics.openedAt.getTime());
 
-  const pnls = closed.map((p) => p.metrics.netPnl);
-  const winsL = closed.filter((p) => p.metrics.netPnl > 0);
-  const lossesL = closed.filter((p) => p.metrics.netPnl < 0);
-  const grossProfit = winsL.reduce((a, p) => a + p.metrics.netPnl, 0);
-  const grossLoss = lossesL.reduce((a, p) => a + p.metrics.netPnl, 0);
+  const pnls = closed.map((p) => p.krw.net);
+  const winsL = closed.filter((p) => p.krw.net > 0);
+  const lossesL = closed.filter((p) => p.krw.net < 0);
+  const grossProfit = winsL.reduce((a, p) => a + p.krw.net, 0);
+  const grossLoss = lossesL.reduce((a, p) => a + p.krw.net, 0);
   const netPnl = grossProfit + grossLoss;
   const avgWin = winsL.length ? grossProfit / winsL.length : 0;
   const avgLoss = lossesL.length ? grossLoss / lossesL.length : 0;
@@ -183,18 +184,18 @@ export function computeStats(all: PositionView[]): Stats {
     maxLossStreak: maxLs,
     avgHoldWin: mean(winsL.map((p) => p.metrics.holdSeconds ?? 0)),
     avgHoldLoss: mean(lossesL.map((p) => p.metrics.holdSeconds ?? 0)),
-    largestWin: winsL.length ? Math.max(...winsL.map((p) => p.metrics.netPnl)) : 0,
-    largestLoss: lossesL.length ? Math.min(...lossesL.map((p) => p.metrics.netPnl)) : 0,
-    fees: closed.reduce((a, p) => a + p.metrics.fees, 0),
+    largestWin: winsL.length ? Math.max(...winsL.map((p) => p.krw.net)) : 0,
+    largestLoss: lossesL.length ? Math.min(...lossesL.map((p) => p.krw.net)) : 0,
+    fees: closed.reduce((a, p) => a + p.krw.fees, 0),
   };
 
   // 일별
   const dayMap = new Map<string, DailyPnl>();
   for (const p of closed) {
     const d = dayMap.get(p.tradeDate) ?? { date: p.tradeDate, netPnl: 0, count: 0, wins: 0 };
-    d.netPnl += p.metrics.netPnl;
+    d.netPnl += p.krw.net;
     d.count++;
-    if (p.metrics.netPnl > 0) d.wins++;
+    if (p.krw.net > 0) d.wins++;
     dayMap.set(p.tradeDate, d);
   }
   const daily = [...dayMap.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -258,8 +259,8 @@ export function computeStats(all: PositionView[]): Stats {
 
   // 분봉 기반
   const withEx = closed.filter((p) => p.excursion);
-  const exW = withEx.filter((p) => p.metrics.netPnl > 0);
-  const exL = withEx.filter((p) => p.metrics.netPnl < 0);
+  const exW = withEx.filter((p) => p.krw.net > 0);
+  const exL = withEx.filter((p) => p.krw.net < 0);
   const chase = withEx.filter((p) => (p.excursion!.preEntryChangePct ?? 0) >= 0.02);
   const excursion: ExcursionSummary = {
     count: withEx.length,
@@ -272,8 +273,8 @@ export function computeStats(all: PositionView[]): Stats {
     avgCapture: mean(withEx.map((p) => p.excursion!.captureRatio).filter((x): x is number => x != null)),
     chase: {
       count: chase.length,
-      winRate: chase.length ? chase.filter((p) => p.metrics.netPnl > 0).length / chase.length : 0,
-      avgPnl: mean(chase.map((p) => p.metrics.netPnl)) ?? 0,
+      winRate: chase.length ? chase.filter((p) => p.krw.net > 0).length / chase.length : 0,
+      avgPnl: mean(chase.map((p) => p.krw.net)) ?? 0,
     },
   };
 

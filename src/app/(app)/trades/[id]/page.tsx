@@ -7,7 +7,7 @@ import { Stat } from "@/components/Stat";
 import { TradeActions } from "@/components/TradeActions";
 import { candleWindow, loadCandles } from "@/lib/candles";
 import { ET, KST, fmt, formatHold } from "@/lib/domain/time";
-import { pct, price, usd } from "@/lib/format";
+import { dollar, pct, price, won } from "@/lib/format";
 import { getPosition } from "@/lib/repo/positions";
 import { getSettings } from "@/lib/settings";
 
@@ -34,15 +34,15 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
             {fmt(m.openedAt, tz, "yyyy.MM.dd HH:mm")} → {m.closedAt ? fmt(m.closedAt, tz, "HH:mm") : "보유 중"} · {tz === KST ? "KST" : "ET"}
           </p>
           <div className="mt-1 flex items-baseline gap-2">
-            {m.status === "closed" ? <Money value={m.netPnl} className="text-3xl font-bold" /> : <span className="text-2xl font-bold">미청산 {m.openQty}주</span>}
+            {m.status === "closed" ? <Money value={p.krw.net} className="text-3xl font-bold" /> : <span className="text-2xl font-bold">미청산 {m.openQty}주</span>}
             {m.status === "closed" && <span className="tnum text-sm text-ink-2">{pct(m.returnPct, 2)}</span>}
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <Stat label="보유 시간" value={formatHold(m.holdSeconds)} />
             <Stat label="R 배수" value={m.rMultiple != null ? `${m.rMultiple.toFixed(2)}R` : "-"} />
-            <Stat label="수수료" value={usd(m.fees, { sign: false })} />
-            <Stat label="평균 매수가" value={price(m.avgEntry)} sub={`최대 ${m.maxQty}주`} />
-            <Stat label="평균 매도가" value={price(m.avgExit)} />
+            <Stat label="수수료" value={won(p.krw.fees, { sign: false })} sub={`$${m.fees.toFixed(2)}`} />
+            <Stat label="평균 매수가" value={dollar(m.avgEntry)} sub={`최대 ${m.maxQty}주`} />
+            <Stat label="평균 매도가" value={dollar(m.avgExit)} sub={`손익 ${m.netPnl < 0 ? "−" : "+"}$${Math.abs(m.netPnl).toFixed(2)}`} />
             <Stat label="체결" value={`${m.fillCount}회`} />
           </div>
         </section>
@@ -53,8 +53,8 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
             <CandleChart
               bars={bars.map((b) => ({ t: b.ts.getTime() / 1000, o: b.open, h: b.high, l: b.low, c: b.close, v: b.volume }))}
               fills={p.executions.map((x) => ({ t: x.executedAt.getTime() / 1000, side: x.side, price: x.price, qty: x.qty }))}
-              plannedStop={p.plannedStop}
-              plannedTarget={p.plannedTarget}
+              plannedStop={p.stopPrice}
+              plannedTarget={p.targetPrice}
               avgEntry={m.avgEntry}
               timezones={timezones}
             />
@@ -69,8 +69,8 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
           <section className="card p-4">
             <p className="mb-2 text-sm font-semibold">분봉으로 본 이 매매</p>
             <div className="grid grid-cols-2 gap-2">
-              <Stat label="최대 역행 (MAE)" value={<span className="text-loss">{pct(e.maePct, 2)}</span>} sub={usd(e.maeUsd)} />
-              <Stat label="최대 순행 (MFE)" value={<span className="text-profit">{pct(e.mfePct, 2)}</span>} sub={usd(e.mfeUsd)} />
+              <Stat label="최대 역행 (MAE)" value={<span className="text-loss">{pct(e.maePct, 2)}</span>} sub={won(e.maeUsd * p.fxRate)} />
+              <Stat label="최대 순행 (MFE)" value={<span className="text-profit">{pct(e.mfePct, 2)}</span>} sub={won(e.mfeUsd * p.fxRate)} />
               <Stat label="매도 후 30분 최고" value={pct(e.postExitHighPct, 2)} sub="평균 매도가 대비" />
               <Stat label="진입 전 10분 변화" value={pct(e.preEntryChangePct, 2)} sub={(e.preEntryChangePct ?? 0) >= 0.02 ? "추격매수 주의" : undefined} />
               <Stat label="수익 포착률" value={e.captureRatio != null ? pct(e.captureRatio, 0, false) : "-"} sub="실현 / 최대 가능" />
@@ -100,11 +100,15 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
               ))}
             </tbody>
           </table>
-          {(p.plannedStop || p.plannedTarget) && (
+          {(p.stopPct != null || p.targetPct != null) && (
             <p className="tnum mt-2 text-xs text-ink-3">
-              계획 손절 {price(p.plannedStop)} · 목표 {price(p.plannedTarget)}
+              계획 손절 {p.stopPct != null ? `−${p.stopPct}% (${dollar(p.stopPrice)})` : "-"} · 목표{" "}
+              {p.targetPct != null ? `+${p.targetPct}% (${dollar(p.targetPrice)})` : "-"}
             </p>
           )}
+          <p className="tnum mt-1 text-xs text-ink-3">
+            적용 환율 {p.fxRate.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}원{p.fxProvisional ? " (임시값 · 수정에서 입력 가능)" : ""}
+          </p>
         </section>
 
         <section className="card flex flex-col gap-3 p-4 text-sm">

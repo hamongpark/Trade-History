@@ -8,6 +8,20 @@
       "when": 1790142971784,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790775988461,
+      "tag": "0001_krw_and_pct",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790775996849,
+      "tag": "0002_drop_planned_prices",
+      "breakpoints": true
     }
   ]
 }
