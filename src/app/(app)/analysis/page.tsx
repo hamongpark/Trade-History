@@ -5,10 +5,12 @@ import { Money } from "@/components/Money";
 import { PageHeader } from "@/components/PageHeader";
 import { Stat } from "@/components/Stat";
 import { deriveInsights } from "@/lib/domain/insights";
+import { ruleSummary } from "@/lib/domain/rules";
 import { BREAKDOWN_LABELS, computeStats, type BreakdownKey } from "@/lib/domain/stats";
 import { ET, addDays, etDate, formatHold, mondayOf } from "@/lib/domain/time";
 import { pct, won } from "@/lib/format";
 import { listPositions } from "@/lib/repo/positions";
+import { rulesFor } from "@/lib/rules";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +31,10 @@ export default async function AnalysisPage({ searchParams }: PageProps<"/analysi
   const from = { week: mondayOf(today), month: `${today.slice(0, 7)}-01`, "3m": addDays(today, -91), all: undefined }[period];
   const settings = await getSettings();
   const tz = settings.displayTimezone;
-  const stats = computeStats(await listPositions({ from }), { tz });
+  const list = await listPositions({ from });
+  const stats = computeStats(list, { tz });
+  const { results } = await rulesFor(list);
+  const rs = ruleSummary(list, results);
   const s = stats.summary;
   const insights = deriveInsights(stats);
   const ex = stats.excursion;
@@ -67,6 +72,39 @@ export default async function AnalysisPage({ searchParams }: PageProps<"/analysi
                 <Stat label="보유 (손실)" value={formatHold(s.avgHoldLoss)} />
                 <Stat label="최대 연패" value={`${s.maxLossStreak}연패`} sub={`최대 연승 ${s.maxWinStreak}`} />
               </div>
+            </section>
+
+            <section className="card p-4">
+              <div className="mb-3 flex items-baseline justify-between">
+                <p className="text-sm font-semibold">그라운드 룰 준수</p>
+                <Link href="/settings#rules" className="text-xs text-ink-3">
+                  룰 보기 ›
+                </Link>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <Stat label="준수율" value={rs.compliance != null ? pct(rs.compliance, 0, false) : "-"} sub={`${rs.total}건 중`} />
+                <Stat label="지킨 매매 손익" value={<span className={rs.cleanNet >= 0 ? "text-profit" : "text-loss"}>{won(rs.cleanNet)}</span>} />
+                <Stat label="어긴 매매 손익" value={<span className={rs.violatingNet >= 0 ? "text-profit" : "text-loss"}>{won(rs.violatingNet)}</span>} />
+              </div>
+              <ul className="mt-3 flex flex-col divide-y divide-border text-sm">
+                {rs.rows.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between py-2">
+                    <span className={r.count ? "text-ink" : "text-ink-3"}>
+                      {"①②③④⑤⑥⑦"[r.no - 1]} {r.title}
+                    </span>
+                    <span className="tnum text-ink-2">
+                      {r.count ? (
+                        <>
+                          위반 {r.count}건 · <span className={r.netKrw >= 0 ? "text-profit" : "text-loss"}>{won(r.netKrw)}</span>
+                        </>
+                      ) : (
+                        "✓"
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {rs.pendingChecks > 0 && <p className="mt-2 text-xs text-accent">자가 체크가 필요한 매매 {rs.pendingChecks}건 (손절선 도달 후 보유)</p>}
             </section>
 
             <section className="card p-4">

@@ -36,6 +36,11 @@ export interface Excursion {
   /** 실현 수익 / 최대 가능 수익(MFE). 1 에 가까울수록 고점 근처 매도 */
   captureRatio: number | null;
   barsInHold: number;
+  /**
+   * 보유 중 가격이 계획 손절선에 처음 닿은 뒤 청산까지 걸린 분.
+   * null = 손절선에 닿지 않음, undefined = 계산 전(이전 버전 데이터)
+   */
+  stopHitDelayMin?: number | null;
 }
 
 export interface PositionMetrics {
@@ -73,6 +78,8 @@ export interface PositionRecord {
   fxRate: number;
   /** 환율이 확정값이 아니라 임시값인지 */
   fxProvisional: boolean;
+  /** 손절선 도달·손실 시 자가 체크: 다시 봐도 진입할 자리였나 */
+  wouldReenter: boolean | null;
   setupTags: string[];
   emotionTags: string[];
   confidence: number | null;

@@ -23,6 +23,8 @@ export interface FormValues {
   emotionTags: string[];
   confidence: number | null;
   followedPlan: boolean | null;
+  /** 손실 매매 자가 체크: 다시 봐도 진입할 자리였나 */
+  wouldReenter: boolean | null;
   entryReason: string;
   exitReason: string;
   note: string;
@@ -47,6 +49,7 @@ export function emptyValues(date: string, defaults: { stopPct?: number | null; t
     emotionTags: [],
     confidence: null,
     followedPlan: null,
+    wouldReenter: null,
     entryReason: "",
     exitReason: "",
     note: "",

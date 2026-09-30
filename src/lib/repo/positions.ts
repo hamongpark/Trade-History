@@ -29,6 +29,7 @@ export const positionInputSchema = z.object({
   emotionTags: z.array(z.string()).default([]),
   confidence: z.number().int().min(1).max(5).nullable().optional(),
   followedPlan: z.boolean().nullable().optional(),
+  wouldReenter: z.boolean().nullable().optional(),
   entryReason: z.string().default(""),
   exitReason: z.string().default(""),
   note: z.string().default(""),
@@ -62,6 +63,7 @@ function toView(row: PositionRow, execs: ExecutionRow[], fx: { rate: number; pro
     emotionTags: row.emotionTags,
     confidence: row.confidence,
     followedPlan: row.followedPlan,
+    wouldReenter: row.wouldReenter,
     entryReason: row.entryReason,
     exitReason: row.exitReason,
     note: row.note,
@@ -151,6 +153,7 @@ async function normalize(input: PositionInput) {
     emotionTags: input.emotionTags,
     confidence: input.confidence ?? null,
     followedPlan: input.followedPlan ?? null,
+    wouldReenter: input.wouldReenter ?? null,
     entryReason: input.entryReason,
     exitReason: input.exitReason,
     note: input.note,
@@ -202,4 +205,9 @@ export async function setCandleState(id: number, status: string, error: string |
     .update(schema.positions)
     .set({ candlesStatus: status, candlesError: error, excursion })
     .where(eq(schema.positions.id, id));
+}
+
+export async function setWouldReenter(id: number, value: boolean | null) {
+  const db = await getDb();
+  await db.update(schema.positions).set({ wouldReenter: value, updatedAt: new Date() }).where(eq(schema.positions.id, id));
 }

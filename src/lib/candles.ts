@@ -57,7 +57,7 @@ export async function refreshCandles(positionId: number): Promise<{ ok: boolean;
       const last = cached.at(-1)?.ts.getTime() ?? 0;
       // 무료 시세는 최근 15분 데이터를 주지 않아 매매 직후 저장하면 매도 후 구간이 비어 있다
       const status = isPartial(last, to) ? "partial" : "ok";
-      await setCandleState(p.id, status, null, computeExcursion(cached, p.metrics));
+      await setCandleState(p.id, status, null, computeExcursion(cached, p.metrics, p.stopPrice));
       return { ok: true, count: bars.length };
     } catch (e) {
       errors.push(`${provider.id}: ${e instanceof Error ? e.message : String(e)}`);
@@ -87,4 +87,11 @@ export async function refreshCandlesWithTimeout(positionId: number, ms = 8000) {
     refreshCandles(positionId),
     new Promise<{ ok: false; error: string }>((r) => setTimeout(() => r({ ok: false, error: "timeout" }), ms)),
   ]);
+}
+
+/** 저장된 분봉으로 지표만 다시 계산 (새 지표 추가 시 기존 기록 갱신용, 외부 호출 없음) */
+export async function recomputeExcursion(p: PositionView): Promise<void> {
+  const { from, to } = candleWindow(p);
+  const cached = await loadCandles(p.ticker, from, to);
+  if (cached.length) await setCandleState(p.id, p.candlesStatus, p.candlesError, computeExcursion(cached, p.metrics, p.stopPrice));
 }

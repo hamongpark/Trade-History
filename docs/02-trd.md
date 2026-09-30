@@ -18,6 +18,9 @@
 - `candles_1m`: (ticker, ts) PK, OHLCV, source — 공급자 무관 캐시
 - `fx_rates`: 날짜별 USD/KRW 기준환율 캐시 (Frankfurter = ECB 고시, 주말·휴일은 직전 영업일)
 - `positions.stop_pct / target_pct`: 손절율·목표율(%). 가격선·R 은 평균 매수가 × (1 ∓ %) 로 계산
+- `positions.would_reenter`: 룰 ⑥ 자가 체크
+- `cash_flows`: 입출금 기록 (룰 ⑤ 추정 잔고 = 거래 자금 + 순손익 ± 입출금)
+- 그라운드 룰 설정은 `settings.rules`(JSON), 판정 로직은 `src/lib/domain/rules.ts` (순수 함수, 테스트). 같은 거래일의 앞선 매매 결과(큰 손실·목표 달성)로 이후 매매를 판정하므로 거래일 단위로 함께 평가
 - `positions.fx_rate`: 적용 환율. 비어 있으면 조회 시 거래일 환율로 채움 (확정값만 저장)
 - `ai_reports`: 기간, 모델, 본문(md), focus, 통계 스냅샷, 토큰 사용량
 - `settings`: key/value(JSON)

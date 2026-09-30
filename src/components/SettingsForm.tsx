@@ -6,8 +6,6 @@ interface S {
   inputTimezone: string;
   displayTimezone: string;
   feeRatePct: number;
-  dailyLossLimitKrw: number;
-  maxTradesPerDay: number;
   defaultStopPct: number | null;
   defaultTargetPct: number | null;
   setupTags: string[];
@@ -41,8 +39,6 @@ export function SettingsForm({ initial }: { initial: S }) {
         inputTimezone: s.inputTimezone,
         displayTimezone: s.displayTimezone,
         feeRatePct: Number(s.feeRatePct),
-        dailyLossLimitKrw: Number(s.dailyLossLimitKrw),
-        maxTradesPerDay: Number(s.maxTradesPerDay),
         defaultStopPct: optNum(s.stopText),
         defaultTargetPct: optNum(s.targetText),
         setupTags: split(s.setupText),
@@ -70,19 +66,9 @@ export function SettingsForm({ initial }: { initial: S }) {
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div className={row}>
-          <span className="text-sm text-ink-2">수수료율 %</span>
-          <input className="input" inputMode="decimal" value={s.feeRatePct} onChange={(e) => setS({ ...s, feeRatePct: e.target.value as unknown as number })} />
-        </div>
-        <div className={row}>
-          <span className="text-sm text-ink-2">일 손실 한도 (원)</span>
-          <input className="input" inputMode="decimal" value={s.dailyLossLimitKrw} onChange={(e) => setS({ ...s, dailyLossLimitKrw: e.target.value as unknown as number })} />
-        </div>
-        <div className={row}>
-          <span className="text-sm text-ink-2">일 최대 매매</span>
-          <input className="input" inputMode="numeric" value={s.maxTradesPerDay} onChange={(e) => setS({ ...s, maxTradesPerDay: e.target.value as unknown as number })} />
-        </div>
+      <div className={row}>
+        <span className="text-sm text-ink-2">수수료율 %</span>
+        <input className="input" inputMode="decimal" value={s.feeRatePct} onChange={(e) => setS({ ...s, feeRatePct: e.target.value as unknown as number })} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className={row}>

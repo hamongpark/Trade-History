@@ -14,6 +14,7 @@ describe("원화 표시", () => {
     expect(wonCompact(82300)).toBe("+8.2만");
     expect(wonCompact(-1250000)).toBe("−125만");
     expect(wonCompact(5300)).toBe("+5,300");
+    expect(wonCompact(100000)).toBe("+10만");
     expect(wonCompact(130000000)).toBe("+1.3억");
   });
 });

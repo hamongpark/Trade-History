@@ -42,7 +42,7 @@ export function wonCompact(x: number): string {
   const sign = x > 0 ? "+" : x < 0 ? "−" : "";
   if (a >= 1e8) return `${sign}${(a / 1e8).toFixed(1)}억`;
   if (a >= 1e6) return `${sign}${Math.round(a / 1e4)}만`;
-  if (a >= 1e4) return `${sign}${(a / 1e4).toFixed(1)}만`;
+  if (a >= 1e4) return `${sign}${(a / 1e4).toFixed(1).replace(/\.0$/, "")}만`;
   return `${sign}${Math.round(a).toLocaleString("ko-KR")}`;
 }
 

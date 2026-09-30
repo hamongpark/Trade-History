@@ -31,6 +31,8 @@ export const positions = pgTable(
     emotionTags: text("emotion_tags").array().notNull().default([]),
     confidence: integer("confidence"),
     followedPlan: boolean("followed_plan"),
+    /** 손절선 도달·손실 시 자가 체크: 다시 봐도 진입할 자리였나 */
+    wouldReenter: boolean("would_reenter"),
     entryReason: text("entry_reason").notNull().default(""),
     exitReason: text("exit_reason").notNull().default(""),
     note: text("note").notNull().default(""),
@@ -103,4 +105,14 @@ export const fxRates = pgTable("fx_rates", {
   rateDate: text("rate_date").notNull(),
   source: text("source").notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** 입출금 기록 (룰 ⑤ 초과분 인출) */
+export const cashFlows = pgTable("cash_flows", {
+  id: serial("id").primaryKey(),
+  date: text("date").notNull(),
+  type: text("type", { enum: ["withdraw", "deposit"] }).notNull(),
+  amountKrw: doublePrecision("amount_krw").notNull(),
+  note: text("note").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

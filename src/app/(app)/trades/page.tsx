@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { addDays, etDate, fmt, formatHold } from "@/lib/domain/time";
 import type { PositionView } from "@/lib/domain/types";
 import { listPositions } from "@/lib/repo/positions";
+import { rulesFor } from "@/lib/rules";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,9 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
 
   let list = await listPositions(date ? { from: date, to: date, ticker } : { from: incomplete ? undefined : addDays(today, -days), ticker });
   if (incomplete) list = list.filter((p) => !p.entryReason || !p.exitReason);
+
+  const { results } = await rulesFor(list);
+  const violations = (id: number) => (results.get(id) ?? []).filter((r) => r.kind === "violation").length;
 
   const byDay = new Map<string, PositionView[]>();
   for (const p of list) byDay.set(p.tradeDate, [...(byDay.get(p.tradeDate) ?? []), p]);
@@ -55,7 +59,8 @@ export default async function TradesPage({ searchParams }: PageProps<"/trades">)
                       <div className="min-w-0">
                         <p className="font-semibold">
                           {p.ticker}
-                          {(!p.entryReason || !p.exitReason) && <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-normal text-warn">사유 미작성</span>}
+                          {violations(p.id) > 0 && <span className="ml-2 rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-normal text-warn">⚠ 룰 위반 {violations(p.id)}</span>}
+                          {(!p.entryReason || !p.exitReason) && <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-normal text-ink-2">사유 미작성</span>}
                         </p>
                         <p className="tnum truncate text-xs text-ink-3">
                           {fmt(p.metrics.openedAt, s.displayTimezone)} · {formatHold(p.metrics.holdSeconds)} · {[...p.setupTags, ...p.emotionTags].join(" · ") || "태그 없음"}

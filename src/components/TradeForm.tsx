@@ -30,6 +30,7 @@ function toPayload(v: FormValues, tz: string) {
     emotionTags: v.emotionTags,
     confidence: v.confidence,
     followedPlan: v.followedPlan,
+    wouldReenter: v.wouldReenter,
     entryReason: v.entryReason,
     exitReason: v.exitReason,
     note: v.note,
@@ -449,6 +450,21 @@ export function TradeForm({
           </div>
         </Field>
       </div>
+
+      {preview?.status === "closed" && preview.netPnl < 0 && (
+        <Field label="손절선에 닿았을 때, 다시 봐도 이 자리에 진입했을까요? (룰 ⑥)">
+          <div className="flex gap-2">
+            {[
+              [true, "예 — 홀딩 정당"],
+              [false, "아니오 — 손절했어야 함"],
+            ].map(([val, label]) => (
+              <button key={String(val)} className="chip flex-1" data-on={v.wouldReenter === val} onClick={() => set("wouldReenter", v.wouldReenter === val ? null : (val as boolean))}>
+                {label as string}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
 
       <Field label="메모">
         <textarea className="input min-h-16" placeholder="복기, 배운 점" value={v.note} onChange={(e) => set("note", e.target.value)} />

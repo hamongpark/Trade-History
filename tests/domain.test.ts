@@ -105,7 +105,7 @@ describe("stats", () => {
     return buildView({
       id, ticker: "AAPL", tradeDate: date, openedAt: executions[0].executedAt, closedAt: executions[1].executedAt,
       stopPct: null, targetPct: null, fxRate: 1, fxProvisional: false, setupTags: tags, emotionTags: [], confidence: null,
-      followedPlan: null, entryReason: "", exitReason: "", note: "", candlesStatus: "none", candlesError: null, excursion: null,
+      followedPlan: null, wouldReenter: null, entryReason: "", exitReason: "", note: "", candlesStatus: "none", candlesError: null, excursion: null,
       executions,
     });
   };
@@ -151,7 +151,7 @@ describe("원화 환산 · 손절율", () => {
     const v = buildView({
       id: 1, ticker: "AAPL", tradeDate: "2026-09-22", openedAt: executions[0].executedAt, closedAt: executions[1].executedAt,
       stopPct: 2, targetPct: 5, fxRate: 1390, fxProvisional: false, setupTags: [], emotionTags: [], confidence: null,
-      followedPlan: null, entryReason: "", exitReason: "", note: "", candlesStatus: "none", candlesError: null, excursion: null,
+      followedPlan: null, wouldReenter: null, entryReason: "", exitReason: "", note: "", candlesStatus: "none", candlesError: null, excursion: null,
       executions,
     });
     expect(v.krw.net).toBeCloseTo(48 * 1390);

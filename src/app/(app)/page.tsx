@@ -4,11 +4,15 @@ import { EquityChart } from "@/components/charts/EquityChart";
 import { Money } from "@/components/Money";
 import { PageHeader } from "@/components/PageHeader";
 import { PnlCalendar } from "@/components/PnlCalendar";
+import { RuleStatusCard } from "@/components/RuleStatusCard";
+import { WithdrawButton } from "@/components/WithdrawButton";
 import { Stat } from "@/components/Stat";
 import { getDb, schema } from "@/lib/db";
 import { computeStats } from "@/lib/domain/stats";
-import { addDays, etDate, formatHold } from "@/lib/domain/time";
+import { dayStatus, evaluateRules, withdrawalStatus } from "@/lib/domain/rules";
+import { KST, addDays, etDate, fmt, formatHold } from "@/lib/domain/time";
 import { pct, won } from "@/lib/format";
+import { listCashFlows } from "@/lib/repo/cashflows";
 import { countIncomplete, listPositions } from "@/lib/repo/positions";
 import { getSettings } from "@/lib/settings";
 
@@ -28,7 +32,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const from = [`${month}-01`, addDays(today, -60)].sort()[0];
   const to = [monthEnd, today].sort()[1];
 
-  const [settings, all, incomplete, db] = await Promise.all([getSettings(), listPositions({ from, to }), countIncomplete(), getDb()]);
+  const [settings, all, incomplete, db, cashFlows] = await Promise.all([
+    getSettings(),
+    listPositions({ from, to }),
+    countIncomplete(),
+    getDb(),
+    listCashFlows(),
+  ]);
+  const capitalPositions = await listPositions({ from: settings.rules.capitalStartDate ?? undefined });
   const [latestReport] = await db
     .select({ id: schema.aiReports.id, focus: schema.aiReports.focus, periodStart: schema.aiReports.periodStart })
     .from(schema.aiReports)
@@ -38,15 +49,17 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const stats = computeStats(all);
   const todayRow = stats.daily.find((d) => d.date === today);
   const prevRow = [...stats.daily].reverse().find((d) => d.date < today);
-  const todayTrades = all.filter((p) => p.tradeDate === today).length;
   const monthStats = computeStats(all.filter((p) => p.tradeDate.startsWith(month)));
   const equity = stats.equity.slice(-30);
   const base = equity.length ? equity[0].cum - (stats.daily.find((d) => d.date === equity[0].date)?.netPnl ?? 0) : 0;
   const equity30 = equity.map((e) => ({ date: e.date, cum: e.cum - base }));
 
   const todayPnl = todayRow?.netPnl ?? 0;
-  const lossUsed = settings.dailyLossLimitKrw > 0 ? Math.max(0, -todayPnl) / settings.dailyLossLimitKrw : 0;
-  const tradeUsed = todayTrades / settings.maxTradesPerDay;
+  const todays = all.filter((p) => p.tradeDate === today);
+  const status = dayStatus(todays, settings.rules);
+  const results = evaluateRules(todays, settings.rules);
+  const violationsToday = todays.filter((p) => results.get(p.id)?.some((r) => r.kind === "violation")).length;
+  const withdrawal = withdrawalStatus(capitalPositions, cashFlows, settings.rules);
 
   return (
     <>
@@ -78,14 +91,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </div>
         </section>
 
-        {/* 오늘의 규칙 가드 */}
-        <section className="card flex flex-col gap-3 p-4">
-          <Gauge label="일 손실 한도" used={lossUsed} text={`${won(Math.min(0, todayPnl), { sign: false })} / −${won(settings.dailyLossLimitKrw, { sign: false })}`} />
-          <Gauge label="오늘 매매 횟수" used={tradeUsed} text={`${todayTrades} / ${settings.maxTradesPerDay}회`} />
-          {(lossUsed >= 1 || tradeUsed >= 1) && (
-            <p className="rounded-lg bg-warn/15 px-3 py-2 text-sm text-warn">⚠ 오늘 한도에 도달했습니다. 오늘은 여기까지.</p>
-          )}
-        </section>
+        {/* 그라운드 룰: 지금 매매해도 되는지 */}
+        <RuleStatusCard status={status} violationsToday={violationsToday} bigLossPct={settings.rules.bigLossPct} />
+
+        {withdrawal.recommend > 0 && (
+          <section className="card flex flex-col gap-2 border-profit/50 p-4">
+            <p className="font-semibold">💰 인출할 때입니다 · 룰 ⑤</p>
+            <p className="text-xs text-ink-2">
+              추정 잔고 {won(withdrawal.balance, { sign: false })} → 거래 자금 {won(settings.rules.capitalKrw, { sign: false })} 초과분을 인출하세요
+            </p>
+            <WithdrawButton amountKrw={withdrawal.recommend} date={fmt(new Date(), KST, "yyyy-MM-dd")} />
+          </section>
+        )}
 
         {incomplete > 0 && (
           <Link href="/trades?incomplete=1" className="card flex items-center justify-between p-4 text-sm">
@@ -134,21 +151,5 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </section>
       </div>
     </>
-  );
-}
-
-function Gauge({ label, used, text }: { label: string; used: number; text: string }) {
-  const w = Math.min(1, used) * 100;
-  const color = used >= 1 ? "var(--warn)" : used >= 0.7 ? "color-mix(in oklab, var(--warn) 70%, var(--text-muted))" : "var(--text-muted)";
-  return (
-    <div>
-      <div className="mb-1 flex justify-between text-xs">
-        <span className="text-ink-2">{label}</span>
-        <span className="tnum text-ink-2">{text}</span>
-      </div>
-      <div className="h-2 rounded bg-surface-2">
-        <div className="h-2 rounded" style={{ width: `${w}%`, background: color }} />
-      </div>
-    </div>
   );
 }

@@ -31,6 +31,7 @@ export default async function EditTradePage({ params }: PageProps<"/trades/[id]/
     emotionTags: p.emotionTags,
     confidence: p.confidence,
     followedPlan: p.followedPlan,
+    wouldReenter: p.wouldReenter,
     entryReason: p.entryReason,
     exitReason: p.exitReason,
     note: p.note,

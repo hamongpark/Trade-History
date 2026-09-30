@@ -5,7 +5,9 @@ import { Money } from "@/components/Money";
 import { PageHeader } from "@/components/PageHeader";
 import { Stat } from "@/components/Stat";
 import { TradeActions } from "@/components/TradeActions";
-import { candleWindow, loadCandles, needsRefetch, refreshCandlesWithTimeout } from "@/lib/candles";
+import { candleWindow, loadCandles, needsRefetch, recomputeExcursion, refreshCandlesWithTimeout } from "@/lib/candles";
+import { rulesFor } from "@/lib/rules";
+import { RuleChecks } from "@/components/RuleChecks";
 import { ET, KST, fmt, formatHold } from "@/lib/domain/time";
 import { dollar, pct, won } from "@/lib/format";
 import { getPosition } from "@/lib/repo/positions";
@@ -22,7 +24,12 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
   if (needsRefetch(first)) {
     await refreshCandlesWithTimeout(id);
     p = (await getPosition(id)) ?? first;
+  } else if (p.excursion && p.excursion.stopHitDelayMin === undefined && p.stopPct != null) {
+    // 손절 지연 지표가 없던 이전 기록은 저장된 분봉으로 다시 계산
+    await recomputeExcursion(p);
+    p = (await getPosition(id)) ?? p;
   }
+  const { rules, results } = await rulesFor([p]);
   const m = p.metrics;
   const tz = s.displayTimezone;
   const { from, to } = candleWindow(p);
@@ -52,6 +59,8 @@ export default async function TradeDetail({ params }: PageProps<"/trades/[id]">)
             <Stat label="체결" value={`${m.fillCount}회`} />
           </div>
         </section>
+
+        <RuleChecks p={p} results={results.get(p.id) ?? []} enabled={rules.enabled} />
 
         <section className="card p-3">
           <p className="mb-2 px-1 text-sm font-semibold">체결 전후 30분 · 1분봉 <span className="text-xs font-normal text-ink-3">(원화 환산)</span></p>
